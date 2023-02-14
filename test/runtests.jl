@@ -1,6 +1,10 @@
 using BNPVAR
 using Test
 
+using AbstractGSBPs
+using LinearAlgebra
+using Random
+
 @testset "BNPVAR.jl" begin
-    # Write your tests here.
+    include("sandbox.jl")
 end

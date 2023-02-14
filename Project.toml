@@ -3,6 +3,13 @@ uuid = "08f298fa-4866-4a62-89c2-1324e53f7acd"
 authors = ["Iván Gutiérrez <ivangutierrez1988@gmail.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+AbstractGSBPs = "cb3d5aec-0da4-4bd1-bdcb-5a67dc07bef0"
+BayesVAR = "1b8a9075-9d38-459f-8476-a19c1ddcf155"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
 [compat]
 julia = "1.7"
 

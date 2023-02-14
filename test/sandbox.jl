@@ -1,0 +1,27 @@
+# Setup
+begin
+    Random.seed!(1)
+    T, N, p = 1000, 2, 1
+    k = N * (1 + N * p)
+    Z = randn(T, N)
+    c = [0.0, 0.0]
+    Σ = [1.0 0.0; 0.0 2.0]
+    A = [0.25 0.0; 0.0 0.25]
+    for t in 2:T
+        Z[t, :] .= c + A * Z[t - 1, :] + cholesky(Σ).L * randn(N)
+    end
+    yvec = [Z[t, :] for t in 2:T]
+    Xvec = [kron(I(N), [1 Z[t-1, :]']) for t in 2:T]
+    y = vcat(yvec...)
+    X = vcat(Xvec...)
+end
+
+model = Model(; p, N, T, Z)
+AbstractGSBPs.get_skeleton(model)
+AbstractGSBPs.loglikcontrib(model, yvec[1], Xvec[1], 1)
+AbstractGSBPs.step_atoms!(model, 5)
+
+for iter in 1:100
+    AbstractGSBPs.step!(model)
+end
+@show model.β[1]
