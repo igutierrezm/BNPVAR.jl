@@ -1,0 +1,13 @@
+name = "BNPVAR"
+uuid = "08f298fa-4866-4a62-89c2-1324e53f7acd"
+authors = ["Iván Gutiérrez <ivangutierrez1988@gmail.com> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1.7"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
