@@ -12,17 +12,23 @@ struct Model <: AbstractGSBPs.AbstractGSBP
     S0::Matrix{Float64}
     β0::Vector{Float64}
     v0::Int
+    κ0::Float64
+    κ1::Float64
     # Parameters
     β::Vector{Vector{Float64}}
     Σ::Vector{Matrix{Float64}}
+    g::Vector{Bool}
     # Skeleton
     skl::AbstractGSBPs.GSBPSkeleton{Vector{Float64}, Matrix{Float64}}
     function Model(; p, N, T, Z,
-        Ω0::Matrix{Float64} = 100.0 * I(N * (1 + N * p)) |> collect,
-        S0::Matrix{Float64} = 10.0 * I(N) |> collect,
+        S0::Matrix{Float64} = 1.0 * I(N) |> collect,
         β0::Vector{Float64} = zeros(N * (1 + N * p)),
-        v0::Int = N + 1
+        v0::Int = N + 1,
+        κ0::Float64 = 0.01,
+        κ1::Float64 = 1.00,
     )
+        k = N * (1 + N * p)
+        Ω0 = κ1 * I(k) |> collect
         yvec = [Z[t, :] for t in (1 + p):T]
         lags = ones(T - p, 1)
         for j in 1:p
@@ -31,10 +37,11 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         Xvec = [kron(I(N), lags[t, :]') for t in 1:(T - p)]
         y = vcat(yvec...)
         X = vcat(Xvec...)
-        β = [zeros(N * (1 + N * p))]
+        β = [zeros(k)]
         Σ = [deepcopy(S0)]
+        g = ones(Bool, k)
         skl = AbstractGSBPs.GSBPSkeleton(; y = yvec, x = Xvec)
-        new(p, N, T - p, y, X, yvec, Xvec, Ω0, S0, β0, v0, β, Σ, skl)
+        new(p, N, T - p, y, X, yvec, Xvec, Ω0, S0, β0, v0, κ0, κ1, β, Σ, g, skl)
     end
 end
 
@@ -48,12 +55,15 @@ function AbstractGSBPs.loglikcontrib(model::Model, y0, x0, d0::Int)
 end
 
 function AbstractGSBPs.step_atoms!(model::Model, K::Int)
-    (; y, X, yvec, Xvec, N, T, p, Ω0, S0, β0, v0, β, Σ) = model
+    (; y, X, yvec, Xvec, N, T, p, Ω0, S0, β0, v0, κ0, κ1, β, Σ, g) = model
     d = AbstractGSBPs.get_cluster_labels(model)
     k = N * (1 + N * p)
     while length(β) < K
         push!(β, zeros(k))
         push!(Σ, Matrix(1.0 * I(N)))
+    end
+    for row in 1:k
+        Ω0[row, row] = g[row] ? κ1 : κ0
     end
     submodel = BayesVAR.Model(; N, p, Ω0, S0, β0, v0)
     idx = zeros(Bool, N * T)
