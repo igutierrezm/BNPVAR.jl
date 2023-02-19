@@ -1,7 +1,7 @@
 # Setup
 begin
     Random.seed!(1)
-    T, N, p = 1000, 2, 1
+    T, N, p = 100, 2, 1
     k = N * (1 + N * p)
     Z = randn(T, N)
     c = [0.0, 0.0]
@@ -21,10 +21,13 @@ AbstractGSBPs.get_skeleton(model)
 AbstractGSBPs.loglikcontrib(model, yvec[1], Xvec[1], 1)
 AbstractGSBPs.step_atoms!(model, 5)
 AbstractGSBPs.step!(model)
+@show BNPVAR.propose_addition(model, 2)
+@show BNPVAR.propose_deletion(model, 2)
+@show BNPVAR.propose_swap(model, 2)
 
-warmup = 5000
+warmup = 500
 neff = 100
-thin = 10
+thin = 1
 iter = warmup + neff * thin
 chain_g = [zeros(Bool, k) for _ in 1:neff]
 for t in 1:iter

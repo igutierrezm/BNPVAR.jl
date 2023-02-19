@@ -99,15 +99,67 @@ function update_g!(model, K)
     return nothing
 end
 
+function propose_addition(model, K)
+    (; g) = model
+    k = length(g)
+    g0 = deepcopy(g)
+    g1 = deepcopy(g)
+    lb_a = 1 / k
+    ub_a = k
+    idx_star = 0
+    log_w_star = -Inf
+    for idx in 1:k
+        g1[idx] && continue
+        g1[idx] = true
+        log_w = log_B(model, g0, g1, K)
+        log_w = min(log_w, log(ub_a))
+        log_w = max(log_w, log(lb_a))
+        if log_w > log_w_star
+            log_w_star = log_w
+            idx_star = idx
+        end
+        g1[idx] = false
+    end
+    return idx_star
+end
 
-# function propose_addition!(model, K)
-#     (; N, p, Ω0, β0, κ0, κ1, β, g) = model
-#     k = N * (1 + N * p)
-#     log_probs = -Inf * ones(k)
-#     for idx in 1:k
+function propose_deletion(model, K)
+    (; g) = model
+    k = length(g)
+    g0 = deepcopy(g)
+    g1 = deepcopy(g)
+    lb_a = 1 / k
+    ub_a = k
+    idx_star = 0
+    log_w_star = -Inf
+    for idx in 1:k
+        !g1[idx] && continue
+        g1[idx] = false
+        log_w = log_B(model, g0, g1, K)
+        log_w = min(log_w, log(ub_a))
+        log_w = max(log_w, log(lb_a))
+        if log_w > log_w_star
+            log_w_star = log_w
+            idx_star = idx
+        end
+        g1[idx] = true
+    end
+    return idx_star
+end
 
-#     end
-# end
+function propose_swap(model, K)
+    (; g) = model
+    idx_star1 = 0
+    idx_star2 = 0
+    if sum(g) < length(g)
+        idx_star1 = propose_addition(model, K)
+        idx_star2 = propose_deletion(model, K)
+    else
+        idx_star1 = propose_deletion(model, K)
+        idx_star2 = propose_addition(model, K)
+    end
+    return idx_star1, idx_star2
+end
 
 function log_B(model, g0, g1, K)
     (; β0, κ0, κ1, β) = model
