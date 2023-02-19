@@ -99,6 +99,8 @@ function update_g!(model, K)
     return nothing
 end
 
+# All what follows is related to Rosenthal et al. (2022)
+
 function propose_addition(model, K)
     (; g) = model
     k = length(g)
@@ -160,6 +162,26 @@ function propose_swap(model, K)
     end
     return idx_star1, idx_star2
 end
+
+function log_kernel(model, g0, g1, K)
+#     k = length(g0)
+#     h_a = 0.0
+#     h_d = 0.0
+#     if sum(g0) == 0
+#         h_a = 1.0
+#         h_d = 0.0
+#     elseif sum(g0) == k
+#         h_a = 0.0
+#         h_d = 0.1
+#     else
+#         h_a = 0.5
+#         h_d = 0.5
+#     end
+#     # h_s = sum(g0) < length(g0) ? 0.2 : 0.5
+#     # w_s = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, k * s0)
+#     w_a = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, 1 / k^2)
+#     w_d = log_B(model, g0, g1, K) |> x -> min(x, k^1) |> x -> max(x, 1 / k^2)
+# end
 
 function log_B(model, g0, g1, K)
     (; β0, κ0, κ1, β) = model
