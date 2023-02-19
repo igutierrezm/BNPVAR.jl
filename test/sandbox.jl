@@ -20,8 +20,18 @@ model = Model(; p, N, T, Z)
 AbstractGSBPs.get_skeleton(model)
 AbstractGSBPs.loglikcontrib(model, yvec[1], Xvec[1], 1)
 AbstractGSBPs.step_atoms!(model, 5)
+AbstractGSBPs.step!(model)
 
-for iter in 1:100
+warmup = 5000
+neff = 100
+thin = 10
+iter = warmup + neff * thin
+chain_g = [zeros(Bool, k) for _ in 1:neff]
+for t in 1:iter
     AbstractGSBPs.step!(model)
+    if (t > warmup) && ((t - warmup) % thin == 0)
+        chain_g[(t - warmup) ÷ thin] .= model.g
+    end
 end
 @show model.β[1]
+@show sum(chain_g) / neff

@@ -81,5 +81,32 @@ function AbstractGSBPs.step_atoms!(model::Model, K::Int)
         Xveck = Xvec[d .== k]
         BayesVAR.update_β!(submodel, yk, Xk, β[k], Σ[k])
         BayesVAR.update_Σ!(submodel, yveck, Xveck, β[k], Σ[k])
+        update_g!(model, K)
     end
+end
+
+function update_g!(model, K)
+    (; N, p, Ω0, β0, κ0, κ1, β, g) = model
+    k = N * (1 + N * p)
+    idx_star = rand(1:k)
+    log_num = 0.0
+    log_den = 0.0
+    for cluster in 1:K
+        ok0 = g[idx_star] ? √κ1 : √κ0
+        ok1 = g[idx_star] ? √κ0 : √κ1
+        log_num += Distributions.logpdf(
+            Distributions.Normal(β0[idx_star], ok1),
+            β[cluster][idx_star]
+        )
+        log_den += Distributions.logpdf(
+            Distributions.Normal(β0[idx_star], ok0),
+            β[cluster][idx_star]
+        )
+    end
+    log_acceptance_rate = log_num - log_den
+    if log(rand()) < log_acceptance_rate
+        g[idx_star] = !g[idx_star]
+        Ω0[idx_star] = g[idx_star] ? κ1 : κ0
+    end
+    return nothing
 end
