@@ -86,27 +86,47 @@ function AbstractGSBPs.step_atoms!(model::Model, K::Int)
 end
 
 function update_g!(model, K)
-    (; N, p, Ω0, β0, κ0, κ1, β, g) = model
-    k = N * (1 + N * p)
-    idx_star = rand(1:k)
-    log_num = 0.0
-    log_den = 0.0
-    for cluster in 1:K
-        ok0 = g[idx_star] ? √κ1 : √κ0
-        ok1 = g[idx_star] ? √κ0 : √κ1
-        log_num += Distributions.logpdf(
-            Distributions.Normal(β0[idx_star], ok1),
-            β[cluster][idx_star]
-        )
-        log_den += Distributions.logpdf(
-            Distributions.Normal(β0[idx_star], ok0),
-            β[cluster][idx_star]
-        )
-    end
-    log_acceptance_rate = log_num - log_den
+    (; Ω0, κ0, κ1, g) = model
+    idx_star = rand(1:length(g))
+    g0 = deepcopy(g)
+    g1 = deepcopy(g)
+    g1[idx_star] = !g0[idx_star]
+    log_acceptance_rate = log_B(model, g0, g1, K)
     if log(rand()) < log_acceptance_rate
         g[idx_star] = !g[idx_star]
         Ω0[idx_star] = g[idx_star] ? κ1 : κ0
     end
     return nothing
+end
+
+
+# function propose_addition!(model, K)
+#     (; N, p, Ω0, β0, κ0, κ1, β, g) = model
+#     k = N * (1 + N * p)
+#     log_probs = -Inf * ones(k)
+#     for idx in 1:k
+
+#     end
+# end
+
+function log_B(model, g0, g1, K)
+    (; β0, κ0, κ1, β) = model
+    log_num = 0.0
+    log_den = 0.0
+    for idx in eachindex(g0)
+        g0[idx] == g1[idx] && continue
+        ok0 = g0[idx] ? √κ1 : √κ0
+        ok1 = g1[idx] ? √κ1 : √κ0
+        for cluster in 1:K
+            log_num += Distributions.logpdf(
+                Distributions.Normal(β0[idx], ok1),
+                β[cluster][idx]
+            )
+            log_den += Distributions.logpdf(
+                Distributions.Normal(β0[idx], ok0),
+                β[cluster][idx]
+            )
+        end
+    end
+    return log_num - log_den
 end
