@@ -18,6 +18,7 @@ struct Model <: AbstractGSBPs.AbstractGSBP
     β::Vector{Vector{Float64}}
     Σ::Vector{Matrix{Float64}}
     g::Vector{Bool}
+    gdict::Dict{Int, Vector{Int}}
     # Skeleton
     skl::AbstractGSBPs.GSBPSkeleton{Vector{Float64}, Matrix{Float64}}
     function Model(; p, N, T, Z,
@@ -26,6 +27,8 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         v0::Int = N + 1,
         κ0::Float64 = 0.01,
         κ1::Float64 = 1.00,
+        g::Vector{Bool} = ones(Bool, N * (N - 1)),
+        gdict::Dict{Int, Vector{Int}} = Dict(m => [m] for m in 1:(N * (1 + N * p)))
     )
         k = N * (1 + N * p)
         Ω0 = κ1 * I(k) |> collect
@@ -39,11 +42,15 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         X = vcat(Xvec...)
         β = [zeros(k)]
         Σ = [deepcopy(S0)]
-        g = ones(Bool, k)
         skl = AbstractGSBPs.GSBPSkeleton(; y = yvec, x = Xvec)
-        new(p, N, T - p, y, X, yvec, Xvec, Ω0, S0, β0, v0, κ0, κ1, β, Σ, g, skl)
+        new(p, N, T - p, y, X, yvec, Xvec, Ω0, S0, β0, v0, κ0, κ1, β, Σ, g, gdict, skl)
     end
 end
+
+# function init_gdict(N, p, row)
+#     i = row
+#     [(p * N + 1) * (j - 1) + N * (m - 1) + i + 1 for m in 1:p]
+# end
 
 function AbstractGSBPs.get_skeleton(model::Model)
     model.skl
@@ -86,7 +93,7 @@ function AbstractGSBPs.step_atoms!(model::Model, K::Int)
 end
 
 function update_g!(model, K)
-    (; Ω0, κ0, κ1, g) = model
+    (; Ω0, κ0, κ1, g, gdict) = model
     idx_star = rand(1:length(g))
     g0 = deepcopy(g)
     g1 = deepcopy(g)
@@ -94,7 +101,9 @@ function update_g!(model, K)
     log_acceptance_rate = log_B(model, g0, g1, K)
     if log(rand()) < log_acceptance_rate
         g[idx_star] = !g[idx_star]
-        Ω0[idx_star] = g[idx_star] ? κ1 : κ0
+        for subidx in gdict[idx_star]
+            Ω0[subidx] = g[idx_star] ? κ1 : κ0
+        end
     end
     return nothing
 end
@@ -181,25 +190,27 @@ function log_kernel(model, g0, g1, K)
 #     # w_s = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, k * s0)
 #     w_a = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, 1 / k^2)
 #     w_d = log_B(model, g0, g1, K) |> x -> min(x, k^1) |> x -> max(x, 1 / k^2)
-# end
+end
 
 function log_B(model, g0, g1, K)
-    (; β0, κ0, κ1, β) = model
+    (; β0, κ0, κ1, β, gdict) = model
     log_num = 0.0
     log_den = 0.0
     for idx in eachindex(g0)
         g0[idx] == g1[idx] && continue
         ok0 = g0[idx] ? √κ1 : √κ0
         ok1 = g1[idx] ? √κ1 : √κ0
-        for cluster in 1:K
-            log_num += Distributions.logpdf(
-                Distributions.Normal(β0[idx], ok1),
-                β[cluster][idx]
-            )
-            log_den += Distributions.logpdf(
-                Distributions.Normal(β0[idx], ok0),
-                β[cluster][idx]
-            )
+        for subidx in gdict[idx]
+            for cluster in 1:K
+                log_num += Distributions.logpdf(
+                    Distributions.Normal(β0[subidx], ok1),
+                    β[cluster][subidx]
+                )
+                log_den += Distributions.logpdf(
+                    Distributions.Normal(β0[subidx], ok0),
+                    β[cluster][subidx]
+                )
+            end
         end
     end
     return log_num - log_den

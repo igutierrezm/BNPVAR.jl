@@ -6,7 +6,7 @@ begin
     Z = randn(T, N)
     c = [0.0, 0.0]
     Σ = [1.0 0.0; 0.0 2.0]
-    A = [0.25 0.0; 0.0 0.25]
+    A = [0.5 0.0; 0.0 0.5]
     for t in 2:T
         Z[t, :] .= c + A * Z[t - 1, :] + cholesky(Σ).L * randn(N)
     end
@@ -25,7 +25,7 @@ AbstractGSBPs.step!(model)
 @show BNPVAR.propose_deletion(model, 2)
 @show BNPVAR.propose_swap(model, 2)
 
-warmup = 500
+warmup = 5000
 neff = 100
 thin = 1
 iter = warmup + neff * thin
