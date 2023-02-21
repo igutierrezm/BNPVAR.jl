@@ -5,7 +5,7 @@ using Distributions: Distributions
 using AbstractGSBPs: AbstractGSBPs
 using BayesVAR: BayesVAR
 
-export Model
+export Model, get_ij_pair
 
 include("sandbox.jl")
 

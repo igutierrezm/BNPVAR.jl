@@ -28,7 +28,7 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         κ0::Float64 = 0.01,
         κ1::Float64 = 1.00,
         g::Vector{Bool} = ones(Bool, N * (N - 1)),
-        gdict::Dict{Int, Vector{Int}} = Dict(m => [m] for m in 1:(N * (1 + N * p)))
+        gdict::Dict{Int, Vector{Int}} = init_gdict(N, p)
     )
         k = N * (1 + N * p)
         Ω0 = κ1 * I(k) |> collect
@@ -47,10 +47,24 @@ struct Model <: AbstractGSBPs.AbstractGSBP
     end
 end
 
-# function init_gdict(N, p, row)
-#     i = row
-#     [(p * N + 1) * (j - 1) + N * (m - 1) + i + 1 for m in 1:p]
-# end
+function get_ij_pair(idx, N)
+    i = 1 + (idx ÷ N)
+    j = 1 + (idx - 1) % (N - 1)
+    j += j >= i
+    (i, j)
+end
+
+function init_gdict(N, p)
+    out = Dict{Int, Vector{Int}}()
+    for idx in 1:(N * (N - 1))
+        i = 1 + (idx ÷ N)
+        j = 1 + (idx - 1) % (N - 1)
+        j += j >= i
+        tmp = [(p * N + 1) * (j - 1) + N * (m - 1) + i + 1 for m in 1:p]
+        out[idx] = deepcopy(tmp)
+    end
+    return out
+end
 
 function AbstractGSBPs.get_skeleton(model::Model)
     model.skl
@@ -62,16 +76,18 @@ function AbstractGSBPs.loglikcontrib(model::Model, y0, x0, d0::Int)
 end
 
 function AbstractGSBPs.step_atoms!(model::Model, K::Int)
-    (; y, X, yvec, Xvec, N, T, p, Ω0, S0, β0, v0, κ0, κ1, β, Σ, g) = model
+    (; y, X, yvec, Xvec, N, T, p, Ω0, S0, β0, v0, β, Σ) = model
     d = AbstractGSBPs.get_cluster_labels(model)
     k = N * (1 + N * p)
     while length(β) < K
         push!(β, zeros(k))
         push!(Σ, Matrix(1.0 * I(N)))
     end
-    for row in 1:k
-        Ω0[row, row] = g[row] ? κ1 : κ0
-    end
+    # for row in eachindex(g)
+    #     for subidx in gdict[row]
+    #         Ω0[subidx] = g[row] ? κ1 : κ0
+    #     end
+    # end
     submodel = BayesVAR.Model(; N, p, Ω0, S0, β0, v0)
     idx = zeros(Bool, N * T)
     for k in 1:K
@@ -102,94 +118,10 @@ function update_g!(model, K)
     if log(rand()) < log_acceptance_rate
         g[idx_star] = !g[idx_star]
         for subidx in gdict[idx_star]
-            Ω0[subidx] = g[idx_star] ? κ1 : κ0
+            Ω0[subidx, subidx] = g[idx_star] ? κ1 : κ0
         end
     end
     return nothing
-end
-
-# All what follows is related to Rosenthal et al. (2022)
-
-function propose_addition(model, K)
-    (; g) = model
-    k = length(g)
-    g0 = deepcopy(g)
-    g1 = deepcopy(g)
-    lb_a = 1 / k
-    ub_a = k
-    idx_star = 0
-    log_w_star = -Inf
-    for idx in 1:k
-        g1[idx] && continue
-        g1[idx] = true
-        log_w = log_B(model, g0, g1, K)
-        log_w = min(log_w, log(ub_a))
-        log_w = max(log_w, log(lb_a))
-        if log_w > log_w_star
-            log_w_star = log_w
-            idx_star = idx
-        end
-        g1[idx] = false
-    end
-    return idx_star
-end
-
-function propose_deletion(model, K)
-    (; g) = model
-    k = length(g)
-    g0 = deepcopy(g)
-    g1 = deepcopy(g)
-    lb_a = 1 / k
-    ub_a = k
-    idx_star = 0
-    log_w_star = -Inf
-    for idx in 1:k
-        !g1[idx] && continue
-        g1[idx] = false
-        log_w = log_B(model, g0, g1, K)
-        log_w = min(log_w, log(ub_a))
-        log_w = max(log_w, log(lb_a))
-        if log_w > log_w_star
-            log_w_star = log_w
-            idx_star = idx
-        end
-        g1[idx] = true
-    end
-    return idx_star
-end
-
-function propose_swap(model, K)
-    (; g) = model
-    idx_star1 = 0
-    idx_star2 = 0
-    if sum(g) < length(g)
-        idx_star1 = propose_addition(model, K)
-        idx_star2 = propose_deletion(model, K)
-    else
-        idx_star1 = propose_deletion(model, K)
-        idx_star2 = propose_addition(model, K)
-    end
-    return idx_star1, idx_star2
-end
-
-function log_kernel(model, g0, g1, K)
-#     k = length(g0)
-#     h_a = 0.0
-#     h_d = 0.0
-#     if sum(g0) == 0
-#         h_a = 1.0
-#         h_d = 0.0
-#     elseif sum(g0) == k
-#         h_a = 0.0
-#         h_d = 0.1
-#     else
-#         h_a = 0.5
-#         h_d = 0.5
-#     end
-#     # h_s = sum(g0) < length(g0) ? 0.2 : 0.5
-#     # w_s = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, k * s0)
-#     w_a = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, 1 / k^2)
-#     w_d = log_B(model, g0, g1, K) |> x -> min(x, k^1) |> x -> max(x, 1 / k^2)
 end
 
 function log_B(model, g0, g1, K)
@@ -215,3 +147,96 @@ function log_B(model, g0, g1, K)
     end
     return log_num - log_den
 end
+
+# # All what follows is related to Rosenthal et al. (2022)
+
+# function propose_addition(model, K)
+#     (; g) = model
+#     k = length(g)
+#     g0 = deepcopy(g)
+#     g1 = deepcopy(g)
+#     lb_a = 1 / k
+#     ub_a = k
+#     idx_star = 0
+#     log_w_star = -Inf
+#     for idx in 1:k
+#         g1[idx] && continue
+#         g1[idx] = true
+#         log_w = log_B(model, g0, g1, K)
+#         log_w = min(log_w, log(ub_a))
+#         log_w = max(log_w, log(lb_a))
+#         if log_w > log_w_star
+#             log_w_star = log_w
+#             idx_star = idx
+#         end
+#         g1[idx] = false
+#     end
+#     return idx_star
+# end
+
+# function propose_deletion(model, K)
+#     (; g) = model
+#     k = length(g)
+#     g0 = deepcopy(g)
+#     g1 = deepcopy(g)
+#     lb_a = 1 / k
+#     ub_a = k
+#     idx_star = 0
+#     log_w_star = -Inf
+#     for idx in 1:k
+#         !g1[idx] && continue
+#         g1[idx] = false
+#         log_w = log_B(model, g0, g1, K)
+#         log_w = min(log_w, log(ub_a))
+#         log_w = max(log_w, log(lb_a))
+#         if log_w > log_w_star
+#             log_w_star = log_w
+#             idx_star = idx
+#         end
+#         g1[idx] = true
+#     end
+#     return idx_star
+# end
+
+# function propose_swap(model, K)
+#     (; g) = model
+#     idx_star1 = 0
+#     idx_star2 = 0
+#     if sum(g) < length(g)
+#         idx_star1 = propose_addition(model, K)
+#         idx_star2 = propose_deletion(model, K)
+#     else
+#         idx_star1 = propose_deletion(model, K)
+#         idx_star2 = propose_addition(model, K)
+#     end
+#     return idx_star1, idx_star2
+# end
+
+# function log_kernel(model, g0, g1, K)
+# #     k = length(g0)
+# #     h_a = 0.0
+# #     h_d = 0.0
+# #     if sum(g0) == 0
+# #         h_a = 1.0
+# #         h_d = 0.0
+# #     elseif sum(g0) == k
+# #         h_a = 0.0
+# #         h_d = 0.1
+# #     else
+# #         h_a = 0.5
+# #         h_d = 0.5
+# #     end
+# #     # h_s = sum(g0) < length(g0) ? 0.2 : 0.5
+# #     # w_s = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, k * s0)
+# #     w_a = log_B(model, g0, g1, K) |> x -> min(x, k^2) |> x -> max(x, 1 / k^2)
+# #     w_d = log_B(model, g0, g1, K) |> x -> min(x, k^1) |> x -> max(x, 1 / k^2)
+# end
+
+# function foo(idx, N)
+#     i = 1 + (idx ÷ N)
+#     j = 1 + (idx - 1) % (N - 1)
+#     j += j >= i
+#     (i, j)
+# end
+
+# [foo(idx, 4) for idx in 1:6]
