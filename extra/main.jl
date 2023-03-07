@@ -1,13 +1,17 @@
 begin
+    using AbstractGSBPs
+    using BNPVAR
+    using CSV
     using RCall
     using Random
     using LinearAlgebra
-    Random.seed!(1)
-    R"""
-    library("bruceR")
-    library("vars")
-    """
 end
+
+R"""
+options(repos = "http://cran.rstudio.com/")
+install.packages("vars")
+"""
+
 
 # begin
 #     R"""
@@ -33,13 +37,15 @@ end
 # end
 
 # Generate 100 samples
-function generate_sample()
-    T, N, p = 100, 2, 2
+function generate_sample(idx)
+    T, N, p = 200, 3, 2
+    i, j = get_ij_pair(idx, N)
     Z = randn(T, N)
-    c = [0.5, -0.5]
-    Σ = [1.0 0.0; 0.0 1.0]
-    A1 = [0.5 0.0; 0.0 0.5]
-    A2 = [0.5 0.1; 0.0 0.5]
+    c = 0.5 * ones(N)
+    Σ = Matrix{Float64}(I(N))
+    A1 = 0.5 * Matrix{Float64}(I(N))
+    A2 = deepcopy(A1)
+    A2[j, i] = 0.5
     d = rand(T) .<= 0.3
     for t in 3:T
         if d[t]
@@ -56,7 +62,37 @@ function generate_sample()
 end
 
 begin
-    samples = [generate_sample() for _ in 1:100];
+    Random.seed!(1)
+    samples = [[generate_sample(idx) for _ in 1:100] for idx in 1:6];
+end;
+
+# Run our test
+for idx in 1:6
+    Random.seed!(1)
+    nsims = 100
+    T, N, p = 200, 3, 2
+    warmup = 5000
+    neff = 100
+    thin = 10
+    iter = warmup + neff * thin
+    chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
+    scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]
+    # bay_scores = -ones(Int, nsims, 8)
+    for sim in 1:nsims
+        println(sim)
+        y, X, Z = samples[idx][sim]
+        model = BNPVAR.Model(; p, N, T, Z)
+        for t in 1:iter
+            AbstractGSBPs.step!(model)
+            if (t > warmup) && ((t - warmup) % thin == 0)
+                chain_g[(t - warmup) ÷ thin] .= model.g
+            end
+        end
+        # bay_scores[sim, idx] = findmax(sum(chain_g))[2]
+        scores[sim] .= mode(chain_g)
+    end
+    scores
+    CSV.write("data$idx.csv", DataFrame(hcat(scores...)' |> collect, :auto))
 end
 
 # Run a Granger causality test on each sample
@@ -90,27 +126,4 @@ begin
         freq_scores[i] = pval >= 0.05
     end
     sum(freq_scores) / 100
-end
-
-# Run our test
-begin
-    N = 2
-    p = 2
-    warmup = 5000
-    neff = 1000
-    thin = 1
-    iter = warmup + neff * thin
-    chain_g = [zeros(Bool, N * (N - 1)) for _ in 1:neff]
-    bay_scores = -ones(100)
-    for i in 1:100
-        model = Model(; p, N, T, Z)
-        for t in 1:iter
-            AbstractGSBPs.step!(model)
-            if (t > warmup) && ((t - warmup) % thin == 0)
-                chain_g[(t - warmup) ÷ thin] .= model.g
-            end
-        end
-        bay_scores[i] = sum(chain_g)[1] / neff <= 0.5
-    end
-    sum(bay_scores) / 100
 end
