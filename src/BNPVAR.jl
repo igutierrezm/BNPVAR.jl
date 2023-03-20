@@ -1,7 +1,7 @@
 module BNPVAR
 
 using LinearAlgebra: kron, I
-using Distributions: Distributions
+using Distributions: Distributions, Gamma
 using AbstractGSBPs: AbstractGSBPs
 using BayesVAR: BayesVAR
 

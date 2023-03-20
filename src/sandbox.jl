@@ -14,10 +14,14 @@ struct Model <: AbstractGSBPs.AbstractGSBP
     v0::Int
     κ0::Float64
     κ1::Float64
+    q0::Float64
+    c0::Float64
     # Parameters
     β::Vector{Vector{Float64}}
     Σ::Vector{Matrix{Float64}}
     g::Vector{Bool}
+    ψ::Vector{Float64}
+    b::Vector{Float64}
     gdict::Dict{Int, Vector{Int}}
     # Skeleton
     skl::AbstractGSBPs.GSBPSkeleton{Vector{Float64}, Matrix{Float64}}
@@ -27,6 +31,8 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         v0::Int = N + 1,
         κ0::Float64 = 0.01,
         κ1::Float64 = 1.00,
+        q0::Float64 = 0.01,
+        c0::Float64 = 10.0,
         g::Vector{Bool} = ones(Bool, N * (N - 1)),
         gdict::Dict{Int, Vector{Int}} = init_gdict(N, p)
     )
@@ -42,8 +48,10 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         X = vcat(Xvec...)
         β = [zeros(k)]
         Σ = [deepcopy(S0)]
+        ψ = ones(length(g))
+        b = ones(length(g))
         skl = AbstractGSBPs.GSBPSkeleton(; y = yvec, x = Xvec)
-        new(p, N, T - p, y, X, yvec, Xvec, Ω0, S0, β0, v0, κ0, κ1, β, Σ, g, gdict, skl)
+        new(p, N, T - p, y, X, yvec, Xvec, Ω0, S0, β0, v0, κ0, κ1, q0, c0, β, Σ, g, ψ, b, gdict, skl)
     end
 end
 
@@ -104,12 +112,14 @@ function AbstractGSBPs.step_atoms!(model::Model, K::Int)
         Xveck = Xvec[d .== k]
         BayesVAR.update_β!(submodel, yk, Xk, β[k], Σ[k])
         BayesVAR.update_Σ!(submodel, yveck, Xveck, β[k], Σ[k])
+        update_b!(model)
+        update_ψ!(model)
         update_g!(model, K)
     end
 end
 
 function update_g!(model, K)
-    (; Ω0, κ0, κ1, g, gdict) = model
+    (; Ω0, q0, ψ, g, gdict) = model
     idx_star = rand(1:length(g))
     g0 = deepcopy(g)
     g1 = deepcopy(g)
@@ -118,20 +128,20 @@ function update_g!(model, K)
     if log(rand()) < log_acceptance_rate
         g[idx_star] = !g[idx_star]
         for subidx in gdict[idx_star]
-            Ω0[subidx, subidx] = g[idx_star] ? κ1 : κ0
+            Ω0[subidx, subidx] = g[idx_star] ? ψ[idx_star] : q0 * ψ[idx_star]
         end
     end
     return nothing
 end
 
 function log_B(model, g0, g1, K)
-    (; β0, κ0, κ1, β, gdict) = model
+    (; β0, q0, ψ, β, gdict) = model
     log_num = 0.0
     log_den = 0.0
     for idx in eachindex(g0)
         g0[idx] == g1[idx] && continue
-        ok0 = g0[idx] ? √κ1 : √κ0
-        ok1 = g1[idx] ? √κ1 : √κ0
+        ok0 = g0[idx] ? √(ψ[idx]) : √(q0 * ψ[idx])
+        ok1 = g1[idx] ? √(ψ[idx]) : √(q0 * ψ[idx])
         for subidx in gdict[idx]
             for cluster in 1:K
                 log_num += Distributions.logpdf(
@@ -147,6 +157,28 @@ function log_B(model, g0, g1, K)
     end
     return log_num - log_den
 end
+
+function update_b!(model)
+    (; c0, b, ψ) = model
+    for idx in eachindex(b)
+        rate = 1.0 / c0 + 1 / ψ[idx]
+        dist = Gamma(1, 1 / rate)
+        b[idx] = 1 / rand(dist)
+    end
+    return nothing
+end
+
+function update_ψ!(model)
+    (; q0, b, ψ, g) = model
+    for idx in eachindex(ψ)
+        rate = b[idx] + 0.5 * b[idx] / (g[idx] + q0 * (1 - g[idx]))
+        dist = Gamma(1, 1 / rate)
+        ψ[idx] = 1 / rand(dist)
+    end
+    return nothing
+end
+
+
 
 # # All what follows is related to Rosenthal et al. (2022)
 
