@@ -1,17 +1,16 @@
 begin
     using AbstractGSBPs
     using BNPVAR
-    using CSV
+    using DataFrames
     using RCall
     using Random
     using LinearAlgebra
+    using StatsBase
 end
 
-R"""
-options(repos = "http://cran.rstudio.com/")
-install.packages("vars")
-"""
-
+# R"""
+# install.packages('vars', repos = "http://cran.rstudio.com/")
+# """
 
 # begin
 #     R"""
@@ -38,7 +37,7 @@ install.packages("vars")
 
 # Generate 100 samples
 function generate_sample(idx)
-    T, N, p = 200, 3, 2
+    T, N, p = 200, 3, 1
     i, j = get_ij_pair(idx, N)
     Z = randn(T, N)
     c = 0.5 * ones(N)
@@ -69,7 +68,7 @@ end;
 # Run our test
 for idx in 1:6
     Random.seed!(1)
-    nsims = 100
+    nsims = 10
     T, N, p = 200, 3, 2
     warmup = 5000
     neff = 100
@@ -79,7 +78,7 @@ for idx in 1:6
     scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]
     # bay_scores = -ones(Int, nsims, 8)
     for sim in 1:nsims
-        println(sim)
+        println("idx: $idx, sim: $sim")
         y, X, Z = samples[idx][sim]
         model = BNPVAR.Model(; p, N, T, Z)
         for t in 1:iter
@@ -91,39 +90,46 @@ for idx in 1:6
         # bay_scores[sim, idx] = findmax(sum(chain_g))[2]
         scores[sim] .= mode(chain_g)
     end
-    scores
-    CSV.write("data$idx.csv", DataFrame(hcat(scores...)' |> collect, :auto))
+    # scores
+    filename = "data$idx.csv"
+    df = DataFrame(hcat(scores...)' |> collect, :auto)
+    R"""
+    readr::write_csv($df, $filename)
+    """
 end
 
-# Run a Granger causality test on each sample
-begin
-    freq_scores = -ones(100)
-    for i in 1:100
-        y, X, Y = samples[i]
-        R"""
-        df <- data.frame($Y)
-        names(df) <- c("y1", "y2")
-        fit <-
-            df |>
-            vars::VAR(p = 2, type = "const")
-        # out <-
-        #     fit |>
-        #     bruceR::granger_causality(
-        #         var.y = "y1",
-        #         var.x = "y2"
-        #     )
-        # pval <- out$result$p.Chisq
-        out <-
-            fit |>
-            vars::causality(
-                cause = "y1",
-                boot = TRUE,
-                boot.runs = 1000
-            )
-        pval <- out$Granger$p.value
-        """
-        @rget pval
-        freq_scores[i] = pval >= 0.05
-    end
-    sum(freq_scores) / 100
-end
+# # Run a Granger causality test on each sample
+# begin
+#     for idx in 1:6
+#         freq_scores = -ones(100)
+#         for i in 1:100
+#             y, X, Y = samples[idx][i]
+#             R"""
+#             df <- data.frame($Y)
+#             names(df) <- c("y1", "y2")
+#             fit <-
+#                 df |>
+#                 vars::VAR(p = 1, type = "const")
+#             out <-
+#                 fit |>
+#                 bruceR::granger_causality(
+#                     var.y = "y1",
+#                     var.x = "y2"
+#                 )
+#             pval <- out$result$p.Chisq
+#             out <-
+#                 fit |>
+#                 vars::causality(
+#                     cause = "y1",
+#                     boot = TRUE,
+#                     boot.runs = 1000
+#                 )
+#             pval <- out$Granger$p.value
+#             """
+#             # @rget pval
+#             # freq_scores[i] = pval >= 0.05
+#         end
+#         # sum(freq_scores) / 100
+#     end
+# end
+ 
