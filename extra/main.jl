@@ -8,9 +8,12 @@ begin
     using StatsBase
 end
 
-# R"""
+R"""
+sessionInfo()
 # install.packages('vars', repos = "http://cran.rstudio.com/")
-# """
+# install.packages('tidytext', repos = "http://cran.rstudio.com/")
+# install.packages('bruceR', repos = "http://cran.rstudio.com/")
+"""
 
 # begin
 #     R"""
@@ -68,7 +71,7 @@ end;
 # Run our test
 for idx in 1:6
     Random.seed!(1)
-    nsims = 10
+    nsims = 100
     T, N, p = 200, 3, 2
     warmup = 5000
     neff = 100
@@ -98,38 +101,63 @@ for idx in 1:6
     """
 end
 
-# # Run a Granger causality test on each sample
-# begin
-#     for idx in 1:6
-#         freq_scores = -ones(100)
-#         for i in 1:100
-#             y, X, Y = samples[idx][i]
-#             R"""
-#             df <- data.frame($Y)
-#             names(df) <- c("y1", "y2")
-#             fit <-
-#                 df |>
-#                 vars::VAR(p = 1, type = "const")
-#             out <-
-#                 fit |>
-#                 bruceR::granger_causality(
-#                     var.y = "y1",
-#                     var.x = "y2"
-#                 )
-#             pval <- out$result$p.Chisq
-#             out <-
-#                 fit |>
-#                 vars::causality(
-#                     cause = "y1",
-#                     boot = TRUE,
-#                     boot.runs = 1000
-#                 )
-#             pval <- out$Granger$p.value
-#             """
-#             # @rget pval
-#             # freq_scores[i] = pval >= 0.05
-#         end
-#         # sum(freq_scores) / 100
-#     end
-# end
- 
+# Run a Granger causality test on each sample
+begin
+    for idx in 1:6
+        freq_scores = -ones(100)
+        for i in 1:100
+            y, X, Y = samples[idx][i]
+            R"""
+            df <- data.frame($Y)
+            names(df) <- c("y1", "y2", "y3")
+            fit <-
+                df |>
+                vars::VAR(p = 1, type = "const")
+            out <-
+                fit |>
+                bruceR::granger_causality(
+                    var.y = "y1",
+                    var.x = "y2"
+                )
+            # pval <- out$result$p.Chisq
+            # out <-
+            #     fit |>
+            #     vars::causality(
+            #         cause = "y1",
+            #         boot = TRUE,
+            #         boot.runs = 1000
+            #     )
+            # pval <- out$Granger$p.value
+            """
+            # @rget pval
+            # freq_scores[i] = pval >= 0.05
+        end
+        # sum(freq_scores) / 100
+    end
+end
+
+R"""
+df <-
+    list.files(pattern = "*.csv") |>
+    readr::read_csv(id = "filename") |>
+    tidyr::unite("gamma", x1:x6, sep = "") |>
+    dplyr::mutate(id =  substring(filename, 5, 5) |> as.integer()) |>
+    dplyr::count(gamma, .by = id) |>
+    dplyr::arrange(.by, dplyr::desc(n))
+
+for (id in 1:6) {
+    true_gamma <- rep(0, 6)
+    true_gamma[id] <- 1
+    true_gamma <- paste0(true_gamma, collapse = "")
+    df |>
+        dplyr::filter(.by == id) |>
+        dplyr::mutate(gamma = reorder(gamma, n)) |>
+        ggplot2::ggplot(ggplot2::aes(y = gamma, x = n)) +
+        ggplot2::geom_col() +
+        ggplot2::labs(
+            title = "Distribucion empirica de las hipotesis seleccionadas por el algoritmo",
+            subtitle = paste0("usando 100 muestras simuladas con gamma = ", true_gamma)
+        )
+    ggplot2::ggsave(paste0("plot", id, ".png"))
+}
+"""
