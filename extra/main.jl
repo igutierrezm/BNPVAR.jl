@@ -69,36 +69,40 @@ begin
 end;
 
 # Run our test
-for idx in 1:6
+for idx in 1:1
     Random.seed!(1)
     nsims = 100
     T, N, p = 200, 3, 2
     warmup = 5000
-    neff = 100
+    neff = 500
     thin = 10
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]
-    # bay_scores = -ones(Int, nsims, 8)
     for sim in 1:nsims
         println("idx: $idx, sim: $sim")
         y, X, Z = samples[idx][sim]
-        model = BNPVAR.Model(; p, N, T, Z)
+        model = BNPVAR.DiracSSModel(; p, N, T, Z)
         for t in 1:iter
             AbstractGSBPs.step!(model)
             if (t > warmup) && ((t - warmup) % thin == 0)
                 chain_g[(t - warmup) ÷ thin] .= model.g
             end
         end
-        # bay_scores[sim, idx] = findmax(sum(chain_g))[2]
-        scores[sim] .= mode(chain_g)
+        # Save results
+        filename = "dirac_gamma_$(idx)_$(sim).csv"
+        df = DataFrame(hcat(chain_g...)' |> collect, :auto)
+        R"""
+        readr::write_csv($df, $filename)
+        """
+        @show idx sim mode(chain_g)
     end
-    # scores
-    filename = "data$idx.csv"
-    df = DataFrame(hcat(scores...)' |> collect, :auto)
-    R"""
-    readr::write_csv($df, $filename)
-    """
+    # # scores
+    # filename = "data$(idx)_dirac.csv"
+    # df = DataFrame(hcat(scores...)' |> collect, :auto)
+    # R"""
+    # readr::write_csv($df, $filename)
+    # """
 end
 
 # Run a Granger causality test on each sample
