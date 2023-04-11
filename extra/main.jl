@@ -105,6 +105,57 @@ for idx in 1:1
     # """
 end
 
+# Summarizes the results
+R"""
+df <-
+    list.files(pattern = "dirac_") |>
+    purrr::map(
+        ~ .x |>
+            readr::read_csv(show_col_types = FALSE) |>
+            dplyr::count(x1, x2, x3, x4, x5, x6) |>
+            magrittr::set_colnames(c(paste0("gamma", 1:6), "n")) |>
+            dplyr::mutate(
+                sim = stringr::str_extract_all(.x, "\\d+")[[1]][2],
+                sim = as.integer(sim)
+            )
+    ) |>
+    purrr::reduce(dplyr::bind_rows) |>
+    dplyr::arrange(sim, dplyr::desc(n)) |>
+    dplyr::group_by(sim) |>
+    dplyr::slice(1) |>
+    dplyr::mutate(dplyr::across(gamma1:gamma6, as.character)) |>
+    tidyr::unite("gamma", gamma1:gamma6, sep = "") |>
+    dplyr::ungroup() |>
+    dplyr::count(gamma)
+"""
+
+R"""
+df |>
+    dplyr::mutate(highlight_red = gamma == "100000") |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            fill = highlight_red,
+            y = reorder(gamma, n),
+            x = n
+        )
+    ) +
+    ggplot2::geom_col() +
+    ggplot2::theme_classic() +
+    ggplot2::labs(
+        y = "MAP estimate of gamma",
+        x = "Number of ocurrences (across 100 simulations)",
+        title = "MAP estimates of gamma for 100 simulated datasets",
+        subtitle = "True gamma: 100000"
+    ) +
+    ggplot2::theme(
+        plot.title = ggplot2::element_text(size = 22),
+        text = ggplot2::element_text(size = 20),
+        legend.position = "top"
+    ) +
+    ggplot2::scale_fill_manual(values = c("grey", "red")) +
+    ggplot2::guides(fill = "none")
+"""
+
 # Run a Granger causality test on each sample
 begin
     for idx in 1:6
