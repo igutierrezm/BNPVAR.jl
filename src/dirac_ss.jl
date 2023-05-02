@@ -48,7 +48,7 @@ struct DiracSSModel <: AbstractGSBPs.AbstractGSBP
 end
 
 function get_ij_pair(idx, N)
-    i = 1 + (idx ÷ N)
+    i = ceil(Int, idx / (N - 1))
     j = 1 + (idx - 1) % (N - 1)
     j += j >= i
     (i, j)
