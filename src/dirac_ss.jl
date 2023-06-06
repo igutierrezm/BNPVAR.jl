@@ -212,3 +212,55 @@ function get_Λ1γU_and_m1γ!(model::SubModel, y, X, Σ, γ)
     m1γ = chol_inv_Ω1γ \ (Xγ' * kron(I(T), inv(Σ)) * y)
     return chol_inv_Ω1γ.U, m1γ
 end
+
+# Extract Ak (in cluster cl) from the model current state
+function get_Ak(m::DiracSSModel, cl::Int, k::Int)
+    (; N, β) = m
+    B = reshape(β[cl], :, N)
+    Ak = B[2 + N * (k - 1):(1 + N * k), :]' |> collect
+    return Ak
+end
+
+# Extract Ak (in cluster cl) from a submodel
+function get_Ak(m::SubModel, β::Vector{Float64}, k::Int)
+    (; N) = m
+    B = reshape(β, :, N)
+    Ak = B[2 + N * (k - 1):(1 + N * k), :]' |> collect
+    return Ak
+end
+
+# Extract c (in cluster cl) from the model current state
+function get_c(m::DiracSSModel, cl::Int)
+    (; N, β) = m
+    B = reshape(β[cl], :, N)
+    c = B[1, :]
+    return c
+end
+
+# Generate the "big A" matrix (for cluster cl) using the current state
+function get_A(m::DiracSSModel, cl::Int)
+    (; N, p) = m
+    Aks = [get_Ak(m, cl, k) for k in 1:p]
+    A = [hcat(Aks...); I(N * (p - 1)) zeros(N * (p - 1), N)]
+    return Matrix{Float64}(A)
+end
+
+# Generate the "big A" matrix (from a submodel) using the current state
+function get_A(m::SubModel, β::Vector{Float64})
+    (; N, p) = m
+    Aks = [get_Ak(m, β, k) for k in 1:p]
+    A = [hcat(Aks...); I(N * (p - 1)) zeros(N * (p - 1), N)]
+    return Matrix{Float64}(A)
+end
+
+function get_irf(m::DiracSSModel, max_horizon = 10)
+    (; N, β) = m
+    nclus = length(β)
+    weights = [AbstractGSBPs.gen_mixture_weight(m, h) for h in 1:nclus]
+    weighted_Ahs = [weights[h] * get_A(m, h) for h in 1:nclus]
+    B = sum(weighted_Ahs)
+    F = svd(B)
+    irfs = [F.U * Diagonal(F.S .^ horizon) * F.Vt for horizon in 1:max_horizon]
+    relevant_irfs = getindex.(irfs, Ref(1:N), Ref(1:N))
+    return relevant_irfs
+end

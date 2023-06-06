@@ -1,6 +1,8 @@
 module BNPVAR
 
-using LinearAlgebra: I, Symmetric, cholesky, inv, kron, ldiv!, logdet, lowrankupdate!, norm
+using LinearAlgebra: I, Diagonal, Symmetric
+using LinearAlgebra: cholesky, inv, kron, ldiv!
+using LinearAlgebra: logdet, lowrankupdate!, norm, svd
 using Distributions: Distributions, Gamma, InverseWishart, rand!
 using AbstractGSBPs: AbstractGSBPs
 using BayesVAR: BayesVAR

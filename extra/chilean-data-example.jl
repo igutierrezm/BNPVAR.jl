@@ -8,16 +8,26 @@ begin
     using StatsBase
 end
 
+R"""
+data <-
+    readxl::read_xlsx('extra/chilean-data-example.xlsx', skip = 2) |>
+    janitor::clean_names() |>
+    dplyr::mutate(
+        income = x7_ingreso_nacional_bruto_disponible,
+        invest = x12_formacion_bruta_de_capital_fijo,
+        cons = x8_consumo_total
+    ) |>
+    dplyr::select(invest, income, cons)
+"""
+
 begin
     Random.seed!(1)
-    data = rcopy(R"readxl::read_xlsx('extra/german-data.xlsx')")
+    data = rcopy(R"data")
     Z = Matrix{Float64}(data)
     T, N = size(Z)
     p = 2
     model = BNPVAR.DiracSSModel(; p, N, T, Z)
 end;
-
-# Plot the data
 
 # Run our test
 begin
@@ -34,7 +44,7 @@ begin
         end
     end
     df = DataFrame(hcat(chain_g...)' |> collect, :auto)
-    filename = "extra/dirac_gamma_german-data.csv"
+    filename = "extra/dirac_gamma_chilean_data.csv"
     R"readr::write_csv($df, $filename)"
 end
 
@@ -68,7 +78,7 @@ end
 
 # Reload the results
 R"""
-filename <- "extra/dirac_gamma_german-data.csv"
+filename <- "extra/dirac_gamma_chilean_data.csv"
 df <- readr::read_csv(filename)
 """
 
@@ -137,5 +147,5 @@ df |>
         y = "does incomde/consumption granger-cause investment?",
         x = "posterior probability"
     )
-ggplot2::ggsave("extra/fig-2vs1-investment.png")
+ggplot2::ggsave("extra/fig-2vs1-investment-chilean.png")
 """
