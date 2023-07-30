@@ -1,3 +1,12 @@
+begin
+    using Revise
+    using BNPVAR
+    using Random
+    using LinearAlgebra
+    using AbstractGSBPs
+    using Statistics
+end
+
 # Setup
 begin
     Random.seed!(2)
@@ -15,24 +24,38 @@ begin
     Xvec = [kron(I(N), [1 vec(Z[(t-p):(t-1), :]')']) for t in (1 + p):T]
     y = vcat(yvec...)
     X = vcat(Xvec...)
-end
+end;
 
-model = Model(; p, N, T, Z)
-AbstractGSBPs.get_skeleton(model)
-AbstractGSBPs.loglikcontrib(model, yvec[1], Xvec[1], 1)
-AbstractGSBPs.step_atoms!(model, 5)
-AbstractGSBPs.step!(model)
-
-warmup = 5000
-neff = 1000
-thin = 1
-iter = warmup + neff * thin
-chain_g = [zeros(Bool, N * (N - 1)) for _ in 1:neff]
-for t in 1:iter
-    AbstractGSBPs.step!(model)
-    if (t > warmup) && ((t - warmup) % thin == 0)
-        chain_g[(t - warmup) ÷ thin] .= model.g
+# Check if step_atoms!() works
+begin
+    maxiter = 10
+    model = BNPVAR.DiracSSModel(; p, N, T, Z);
+    βchain = [deepcopy(model.β[1]) for t in 1:(maxiter ÷ 2)]
+    for iter in 1:maxiter
+        println(iter)
+        AbstractGSBPs.step_atoms!(model, 1)
+        if iter > maxiter ÷ 2
+            βchain[iter - maxiter ÷ 2] .= model.β[1]
+        end
     end
 end
-@show sum(chain_g) / neff
-@show get_ij_pair.(eachindex(model.g), Ref(N))
+
+# model = BNPVAR.DiracSSModel(; p, N, T, Z);
+# skl = AbstractGSBPs.get_skeleton(model)
+# AbstractGSBPs.loglikcontrib(model, yvec[1], Xvec[1], 1)
+# AbstractGSBPs.step_atoms!(model, 1)
+# AbstractGSBPs.step!(model)
+
+# warmup = 5000
+# neff = 1000
+# thin = 1
+# iter = warmup + neff * thin
+# chain_g = [zeros(Bool, N * (N - 1)) for _ in 1:neff]
+# for t in 1:iter
+#     AbstractGSBPs.step!(model)
+#     if (t > warmup) && ((t - warmup) % thin == 0)
+#         chain_g[(t - warmup) ÷ thin] .= model.g
+#     end
+# end
+# @show sum(chain_g) / neff
+# @show get_ij_pair.(eachindex(model.g), Ref(N))

@@ -69,37 +69,92 @@ begin
 end;
 
 # Run our test
-for idx in 1:6
+for idx in 1:1
     Random.seed!(1)
     nsims = 100
     T, N, p = 200, 3, 2
     warmup = 5000
-    neff = 100
+    neff = 500
     thin = 10
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]
-    # bay_scores = -ones(Int, nsims, 8)
     for sim in 1:nsims
         println("idx: $idx, sim: $sim")
         y, X, Z = samples[idx][sim]
-        model = BNPVAR.Model(; p, N, T, Z)
+        model = BNPVAR.DiracSSModel(; p, N, T, Z)
         for t in 1:iter
             AbstractGSBPs.step!(model)
             if (t > warmup) && ((t - warmup) % thin == 0)
                 chain_g[(t - warmup) ÷ thin] .= model.g
             end
         end
-        # bay_scores[sim, idx] = findmax(sum(chain_g))[2]
-        scores[sim] .= mode(chain_g)
+        # Save results
+        filename = "dirac_gamma_$(idx)_$(sim).csv"
+        df = DataFrame(hcat(chain_g...)' |> collect, :auto)
+        R"""
+        readr::write_csv($df, $filename)
+        """
+        @show idx sim mode(chain_g)
     end
-    # scores
-    filename = "data$idx.csv"
-    df = DataFrame(hcat(scores...)' |> collect, :auto)
-    R"""
-    readr::write_csv($df, $filename)
-    """
+    # # scores
+    # filename = "data$(idx)_dirac.csv"
+    # df = DataFrame(hcat(scores...)' |> collect, :auto)
+    # R"""
+    # readr::write_csv($df, $filename)
+    # """
 end
+
+# Summarizes the results
+R"""
+df <-
+    list.files(pattern = "dirac_") |>
+    purrr::map(
+        ~ .x |>
+            readr::read_csv(show_col_types = FALSE) |>
+            dplyr::count(x1, x2, x3, x4, x5, x6) |>
+            magrittr::set_colnames(c(paste0("gamma", 1:6), "n")) |>
+            dplyr::mutate(
+                sim = stringr::str_extract_all(.x, "\\d+")[[1]][2],
+                sim = as.integer(sim)
+            )
+    ) |>
+    purrr::reduce(dplyr::bind_rows) |>
+    dplyr::arrange(sim, dplyr::desc(n)) |>
+    dplyr::group_by(sim) |>
+    dplyr::slice(1) |>
+    dplyr::mutate(dplyr::across(gamma1:gamma6, as.character)) |>
+    tidyr::unite("gamma", gamma1:gamma6, sep = "") |>
+    dplyr::ungroup() |>
+    dplyr::count(gamma)
+"""
+
+R"""
+df |>
+    dplyr::mutate(highlight_red = gamma == "100000") |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            fill = highlight_red,
+            y = reorder(gamma, n),
+            x = n
+        )
+    ) +
+    ggplot2::geom_col() +
+    ggplot2::theme_classic() +
+    ggplot2::labs(
+        y = "MAP estimate of gamma",
+        x = "Number of ocurrences (across 100 simulations)",
+        title = "MAP estimates of gamma for 100 simulated datasets",
+        subtitle = "True gamma: 100000"
+    ) +
+    ggplot2::theme(
+        plot.title = ggplot2::element_text(size = 22),
+        text = ggplot2::element_text(size = 20),
+        legend.position = "top"
+    ) +
+    ggplot2::scale_fill_manual(values = c("grey", "red")) +
+    ggplot2::guides(fill = "none")
+"""
 
 # Run a Granger causality test on each sample
 begin

@@ -1,0 +1,3 @@
+- Agreglar la predictiva.
+- Arreglar el grafico de la IRF.
+- Preparar algunas partes del manuscrito.
