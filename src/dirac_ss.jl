@@ -21,7 +21,6 @@ struct DiracSSModel <: AbstractGSBPs.AbstractGSBP
     skl::AbstractGSBPs.GSBPSkeleton{Vector{Float64}, Matrix{Float64}}
     function DiracSSModel(; p, N, T, Z,
         S0::Matrix{Float64} = 1.0 * I(N) |> collect,
-        β0::Vector{Float64} = zeros(N * (1 + N * p)),
         v0::Int = N + 1,
         q0::Float64 = 2.0,
         g::Vector{Bool} = ones(Bool, N * (N - 1)),
@@ -154,7 +153,7 @@ end
 function update_g!(model, K)
     (; g, gdict, gaugmented) = model
     switched_index = rand(1:length(g))
-    log_bf = get_log_bf(model, switched_index, K)
+    log_bf = get_log_bf(model, switched_index, K) # wrong: where are the prior odds?
     if log(rand()) < log_bf
         g[switched_index] = !g[switched_index]
     end
