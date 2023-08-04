@@ -3,7 +3,7 @@ module BNPVAR
 using LinearAlgebra: I, Diagonal, Symmetric
 using LinearAlgebra: cholesky, inv, kron, ldiv!
 using LinearAlgebra: logdet, lowrankupdate!, norm, svd
-using Distributions: Distributions, Gamma, InverseWishart, rand!
+using Distributions: Distributions, Gamma, InverseWishart, Uniform, rand!
 using AbstractGSBPs: AbstractGSBPs
 using BayesVAR: BayesVAR
 
@@ -12,5 +12,6 @@ export DiracSSModel, get_ij_pair
 
 # include("sandbox.jl")
 include("dirac_ss.jl")
+include("dirac_ss2.jl")
 
 end
