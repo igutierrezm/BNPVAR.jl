@@ -167,3 +167,40 @@ function gen_ψ(g, gdict, N, M)
     end
     return ψ
 end
+
+function AbstractGSBPs.get_skeleton(model::DiracSSModel2)
+    model.skl
+end
+
+function AbstractGSBPs.loglikcontrib(model::DiracSSModel2, y0, x0, d0::Int)
+    (; β, Σ) = model
+    return Distributions.logpdf(Distributions.MvNormal(x0 * β[d0], Σ[d0]), y0)
+end
+
+function AbstractGSBPs.step_atoms!(model::DiracSSModel2, K::Int)
+    (; M, y, X, yvec, Xvec, N, T, p, S0, v0, o0, β, Σ, ψ) = model
+    d = AbstractGSBPs.get_cluster_labels(model)
+    while length(β) < K
+        push!(β, zeros(M))
+        push!(Σ, Matrix(2.0 * I(N)))
+    end
+    submodel = SubModel(; N, p, S0, v0, o0)
+    idx = zeros(Bool, N * T)
+    for k in 1:K
+        row = 1
+        for t = 1:T
+            for j = 1:N
+                idx[row] = d[t] == k
+                row += 1
+            end
+        end
+        yk = y[idx, :]
+        Xk = X[idx, :]
+        yveck = yvec[d .== k]
+        Xveck = Xvec[d .== k, :]
+        update_β!(submodel, yk, Xk, β[k], Σ[k], ψ)
+        update_Σ!(submodel, yveck, Xveck, β[k], Σ[k])
+    end
+    update_g!(model, K)
+    return nothing
+end

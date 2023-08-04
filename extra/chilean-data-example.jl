@@ -1,4 +1,5 @@
 begin
+    ENV["R_HOME"] = "C:/Program Files/R/R-4.3.0"
     using AbstractGSBPs
     using BNPVAR
     using DataFrames
@@ -146,6 +147,7 @@ df |>
     ggplot2::labs(
         y = "does incomde/consumption granger-cause investment?",
         x = "posterior probability"
-    )
+    ) +
+    ggplot2::theme_minimal()
 ggplot2::ggsave("extra/fig-2vs1-investment-chilean.png")
 """

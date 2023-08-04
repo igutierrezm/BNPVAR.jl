@@ -12,6 +12,6 @@ export DiracSSModel, get_ij_pair
 
 # include("sandbox.jl")
 include("dirac_ss.jl")
-include("dirac_ss2.jl")
+# include("dirac_ss2.jl")
 
 end
