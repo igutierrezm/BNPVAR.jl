@@ -6,7 +6,7 @@ struct DiracSSModel2 <: AbstractGSBPs.AbstractGSBP
     Y::Matrix{Float64}
     # Transformed data
     M::Int
-    gdict::Dict{Int, Vector{Int}}
+    gdict::Vector{Vector{Bool}}
     yvec::Vector{Vector{Float64}}
     Xvec::Vector{Matrix{Float64}}
     y::Vector{Float64}
@@ -21,11 +21,12 @@ struct DiracSSModel2 <: AbstractGSBPs.AbstractGSBP
     Σ::Vector{Matrix{Float64}}
     Γ::Matrix{Float64}
     # Transformed Parameters
+    β::Vector{Vector{Float64}}
     g::Vector{Bool}
     ψ::Vector{Bool}
     # Skeleton
     skl::AbstractGSBPs.GSBPSkeleton{Vector{Float64}, Matrix{Float64}}
-    function DiracSSModel(;
+    function DiracSSModel2(;
         # Data
         p::Int,
         N::Int,
@@ -59,6 +60,18 @@ struct DiracSSModel2 <: AbstractGSBPs.AbstractGSBP
             S0, v0, o0, A, c, Σ, Γ, β, g, ψ, skl
         )
     end
+end
+
+function init_S0(N)
+   1.0 * I(N) |> collect
+end
+
+function init_v0(N)
+    N + 1.0
+end
+
+function init_o0()
+    2.0
 end
 
 function gen_M(N, p)

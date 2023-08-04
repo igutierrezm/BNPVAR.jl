@@ -178,8 +178,14 @@ end
     M = BV.gen_M(N, p)
     gdict = BV.gen_gdict(N, p)
     ψ = BV.gen_ψ(g, gdict, N, M)
-    @show g
-    @show gdict
-    @show ψ
     @test ψ == [1 1 0; 1 1 1]' |> vec
+end
+
+@testset "DiracSSModel2()" begin
+    p = 2
+    N = 2
+    T = 5
+    K = 1
+    Y = randn(T, N)
+    mdl = BV.DiracSSModel2(; p, N, T, K, Y)
 end
