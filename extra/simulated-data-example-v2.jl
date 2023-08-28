@@ -40,7 +40,7 @@ end
 
 # Generate 100 samples
 function generate_sample(idx)
-    T, N, p = 200, 3, 1
+    T, N, p = 200, 2, 2
     i, j = get_ij_pair(idx, N)
     Z = randn(T, N)
     c = 0.5 * ones(N)
@@ -65,14 +65,14 @@ end
 
 begin
     Random.seed!(1)
-    samples = [[generate_sample(idx) for _ in 1:100] for idx in 1:6];
+    samples = [[generate_sample(idx) for _ in 1:100] for idx in 1:2];
 end;
 
 # Run our test
 for idx in 1:1
     Random.seed!(1)
     nsims = 100
-    T, N, p = 200, 3, 2
+    T, N, p = 200, 2, 2
     warmup = 5000
     neff = 500
     thin = 10
@@ -90,7 +90,7 @@ for idx in 1:1
             end
         end
         # Save results
-        filename = "extra/dirac_gamma/dirac_gamma_$(idx)_$(sim).csv"
+        filename = "extra/simulated_example/gamma/gamma_$(idx)_$(sim).csv"
         df = DataFrame(hcat(chain_g...)' |> collect, :auto)
         R"""
         readr::write_csv($df, $filename)
@@ -108,9 +108,8 @@ end
 # Summarizes the results
 R"""
 df <-
-    "extra/simulated_example" |>
-    list.files(pattern = "dirac_gamma*", full.names = TRUE) |>
-    purrr::map(
+    list.files(pattern = "extra/simulated_example/gamma") |>
+    purrr::map_df(
         ~ .x |>
             readr::read_csv(show_col_types = FALSE) |>
             dplyr::count(x1, x2, x3, x4, x5, x6) |>
@@ -120,7 +119,6 @@ df <-
                 sim = as.integer(sim)
             )
     ) |>
-    purrr::reduce(dplyr::bind_rows) |>
     dplyr::arrange(sim, dplyr::desc(n)) |>
     dplyr::group_by(sim) |>
     dplyr::slice(1) |>
@@ -131,8 +129,7 @@ df <-
 """
 
 R"""
-fig <-
-    df |>
+df |>
     dplyr::mutate(highlight_red = gamma == "100000") |>
     ggplot2::ggplot(
         ggplot2::aes(
@@ -144,25 +141,18 @@ fig <-
     ggplot2::geom_col() +
     ggplot2::theme_classic() +
     ggplot2::labs(
-        y = "MAP estimate of the\nhypothesis vector",
-        x = "Number of ocurrences\n(across 100 simulations)",
-        # title = "MAP estimates of gamma for 100 simulated datasets",
-        # subtitle = "True gamma: 100000"
+        y = "MAP estimate of gamma",
+        x = "Number of ocurrences (across 100 simulations)",
+        title = "MAP estimates of gamma for 100 simulated datasets",
+        subtitle = "True gamma: 100000"
     ) +
     ggplot2::theme(
         plot.title = ggplot2::element_text(size = 22),
         text = ggplot2::element_text(size = 20),
         legend.position = "top"
     ) +
-    ggplot2::scale_fill_manual(values = c("grey", "black")) +
+    ggplot2::scale_fill_manual(values = c("grey", "red")) +
     ggplot2::guides(fill = "none")
-fig |>
-    ggplot2::ggsave(
-        filename = "extra/simulated_example/fig-map.png",
-        height = 3.5,
-        width = 5.5,
-        dpi = 1200,
-    )
 """
 
 # Run a Granger causality test on each sample
@@ -192,13 +182,13 @@ begin
             #         boot.runs = 1000
             #     )
             # pval <- out$Granger$p.value
-            """;
+            """
             # @rget pval
             # freq_scores[i] = pval >= 0.05
         end
         # sum(freq_scores) / 100
     end
-end;
+end
 
 R"""
 df <-
@@ -225,3 +215,58 @@ for (id in 1:6) {
     ggplot2::ggsave(paste0("plot", id, ".png"))
 }
 """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# for (p in c(2, 4)) {
+#   fit <-
+#     cleaned_data |>
+#     vars::VAR(p = p, type = "const")
+#
+#   varnames <-
+#     dplyr::tibble(cause = c("investment", "income", "consumption"))
+#
+#   varname_pairs <-
+#     varnames |>
+#     dplyr::cross_join(varnames) |>
+#     dplyr::rename(cause = cause.x, effect = cause.y) |>
+#     dplyr::filter(cause != effect)
+#
+#   pvals <-
+#     varname_pairs |>
+#     dplyr::rowwise() |>
+#     dplyr::mutate(
+#       pval =
+#         bruceR::granger_causality(
+#           varmodel = fit,
+#           var.y = effect,
+#           var.x = cause,
+#           test = "Chisq"
+#         ) |>
+#         magrittr::extract2("result") |>
+#         magrittr::extract2("p.Chisq"),
+#       nlags = p
+#     )
+#
+#   readr::write_csv(
+#     x = pvals,
+#     file = paste0(
+#       "C:/Users/Ivan/Documents/julia-projects/BNPVAR.jl/extra/chilean_example/",
+#       "pvals-1vs1-var",
+#       p,
+#       ".csv"
+#     )
+#   )
+# }
