@@ -2,7 +2,7 @@
 
 julia_version = "1.9.1"
 manifest_format = "2.0"
-project_hash = "3ff643b7df056031f85ddb2fb7529b7e628c176f"
+project_hash = "28a4f3c8abc7f00a8b8da7ff312fb0254ad13ef1"
 
 [[deps.AbstractGSBPs]]
 deps = ["Distributions", "HypergeometricFunctions", "SpecialFunctions"]
@@ -11,6 +11,18 @@ repo-rev = "main"
 repo-url = "git@github.com:igutierrezm/AbstractGSBPs.jl.git"
 uuid = "cb3d5aec-0da4-4bd1-bdcb-5a67dc07bef0"
 version = "0.1.0"
+
+[[deps.Adapt]]
+deps = ["LinearAlgebra", "Requires"]
+git-tree-sha1 = "76289dc51920fdc6e0013c872ba9551d54961c24"
+uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+version = "3.6.2"
+
+    [deps.Adapt.extensions]
+    AdaptStaticArraysExt = "StaticArrays"
+
+    [deps.Adapt.weakdeps]
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -47,16 +59,6 @@ deps = ["Compat", "LinearAlgebra", "SparseArrays"]
 git-tree-sha1 = "c6d890a52d2c4d55d326439580c3b8d0875a77d9"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 version = "1.15.7"
-
-[[deps.ChangesOfVariables]]
-deps = ["LinearAlgebra", "Test"]
-git-tree-sha1 = "844b061c104c408b24537482469400af6075aae4"
-uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
-version = "0.1.5"
-weakdeps = ["ChainRulesCore"]
-
-    [deps.ChangesOfVariables.extensions]
-    ChainRulesCoreExt = "ChainRulesCore"
 
 [[deps.Compat]]
 deps = ["Dates", "LinearAlgebra", "UUIDs"]
@@ -239,12 +241,16 @@ deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
 git-tree-sha1 = "680e733c3a0a9cea9e935c8c2184aea6a63fa0b5"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
 version = "0.3.21"
-weakdeps = ["ChainRulesCore", "ChangesOfVariables", "InverseFunctions"]
 
     [deps.LogExpFunctions.extensions]
     ChainRulesCoreExt = "ChainRulesCore"
     ChangesOfVariablesExt = "ChangesOfVariables"
     InverseFunctionsExt = "InverseFunctions"
+
+    [deps.LogExpFunctions.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
+    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -280,6 +286,12 @@ version = "1.0.1"
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.2.0"
+
+[[deps.OffsetArrays]]
+deps = ["Adapt"]
+git-tree-sha1 = "2ac17d29c523ce1cd38e27785a7d23024853a4bb"
+uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
+version = "1.12.10"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]

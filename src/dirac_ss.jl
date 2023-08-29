@@ -151,10 +151,14 @@ function update_Σ!(model::SubModel, yvec, Xvec, β, Σ)
 end
 
 function update_g!(model, K)
-    (; g, gdict, gaugmented) = model
+    (; N, g, gdict, gaugmented) = model
     switched_index = rand(1:length(g))
-    log_bf = get_log_bf(model, switched_index, K) # wrong: where are the prior odds?
-    if log(rand()) < log_bf
+    log_bf = get_log_bf(model, switched_index, K)
+    pγ0 = ph0(N * (N - 1), 1.0)
+    sumg_old = sum(g)
+    sumg_new = sumg_old + 1 - 2 * g[switched_index]
+    log_prior_odds = log(pγ0[sumg_new]) - log(pγ0[sumg_old])
+    if log(rand()) < log_prior_odds + log_bf
         g[switched_index] = !g[switched_index]
     end
     for (key, value) in gdict
@@ -189,8 +193,8 @@ function get_log_bf(model, switched_index, K)
             get_Λ1γU_and_m1γ!(submodel, yk, Xk, Σ[cluster], gaugmented_new)
         )
         out += (
-            logdet(q0 * I(length(m1γ_new))) -
-            logdet(q0 * I(length(m1γ_old))) +
+            length(m1γ_old) * log(q0) -
+            length(m1γ_new) * log(q0) +
             logdet(Λ1γU_old) -
             logdet(Λ1γU_new) +
             norm(Λ1γU_new * m1γ_new, 2)^2 / 2 -
@@ -262,4 +266,23 @@ function get_irf(m::DiracSSModel, max_horizon = 10)
     irfs = [F.U * Diagonal(F.S .^ horizon) * F.Vt for horizon in 1:max_horizon]
     relevant_irfs = getindex.(irfs, Ref(1:N), Ref(1:N))
     return relevant_irfs
+end
+
+"""
+    Return an offset vector `p`, where p[i] is the prior
+    probability of any hypothesis such that sum_{j=1}^m γj = i,
+    according to Womack (2015)'s proposal
+"""
+function ph0(m, ζ)
+    p = OffsetArray([zeros(m); 1.0], 0:m)
+    for l = m-1:-1:0
+        for j = 1:m-l
+            p[l] += ζ * p[l + j] * binomial(l + j, l)
+        end
+    end
+    p /= sum(p)
+    for l = 0:m-1
+        p[l] /= binomial(m, l)
+    end
+    return p
 end

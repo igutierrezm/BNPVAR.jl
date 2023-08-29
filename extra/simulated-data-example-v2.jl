@@ -15,39 +15,16 @@ end
 # install.packages('bruceR', repos = "http://cran.rstudio.com/")
 # """
 
-# begin
-#     R"""
-#     fit <-
-#         vars::Canada |>
-#         vars::VAR(p = 3, type = "const")
-#     # out <-
-#     #     fit |>
-#     #     bruceR::granger_causality(
-#     #         var.y = "prod",
-#     #         var.x = "e"
-#     #     )
-#     # pval <- out$result$p.Chisq
-#     out <-
-#         fit |>
-#         vars::causality(
-#             cause = "prod",
-#             boot = TRUE
-#         )
-#     pval <- out$Granger$p.value
-#     """;
-#     # @rget pval
-# end
-
-# Generate 100 samples
-function generate_sample(idx)
-    T, N, p = 200, 2, 2
-    i, j = get_ij_pair(idx, N)
+# Simulate a sample, as described in the main article
+function generate_sample()
+    T, N, p = 200, 3, 1
     Z = randn(T, N)
     c = 0.5 * ones(N)
     Σ = Matrix{Float64}(I(N))
     A1 = 0.5 * Matrix{Float64}(I(N))
     A2 = deepcopy(A1)
-    A2[j, i] = 0.5
+    A1[1, 2] = -0.5
+    A2[1, 2] = 0.5
     d = rand(T) .<= 0.3
     for t in 3:T
         if d[t]
@@ -63,25 +40,109 @@ function generate_sample(idx)
     return y, X, Z
 end
 
+# Generate 100 samples
 begin
     Random.seed!(1)
-    samples = [[generate_sample(idx) for _ in 1:100] for idx in 1:2];
+    samples = [generate_sample() for _ in 1:100]
 end;
 
+# Run a Granger causality test on each sample
+begin
+    df = DataFrame(i = Int[], j = Int[], p = Int[], rejected = Float64[])
+    for cause in 1:3, effect in 1:3, p in 1:2, idx in 1:100
+        y, X, Y = samples[idx]
+        R"""
+        sink("tmp.txt")
+        df <- data.frame($Y)
+        names(df) <- c("y1", "y2", "y3")
+        fit <-
+            df |>
+            vars::VAR(p = $p, type = "const")
+        out <-
+            fit |>
+            bruceR::granger_causality(
+                var.y = paste0("y", $effect),
+                var.x = paste0("y", $cause)
+            )
+        pval <- out$result$p.Chisq
+        sink()
+        """
+        @rget pval
+        push!(df, (cause, effect, p, pval <= 0.05))
+    end
+end
+
+# Plot the results of the frequentist test
+R"""
+fig <-
+    $df |>
+    dplyr::summarize(
+        freq = sum(rejected),
+        .by = c(i, j, p)
+    ) |>
+    dplyr::mutate(
+        i = paste0("y", i),
+        j = paste0("y", j)
+    ) |>
+    dplyr::rename(`# lags` = p) |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            x = i,
+            y = j,
+            fill = freq,
+            label = freq
+        )
+    ) +
+    ggplot2::geom_tile() +
+    ggplot2::geom_text(
+        ggplot2::aes(color = ifelse(freq > 0.9, "1", "2"))
+    ) +
+    ggplot2::facet_wrap(
+        ggplot2::vars(`# lags`),
+        labeller = "label_both",
+        ncol = 2
+    ) +
+    ggplot2::scale_fill_distiller(
+        type = "seq",
+        direction = 1,
+        palette = "Greys"
+    ) +
+    ggplot2::scale_colour_manual(values = c("white", "black")) +
+    ggplot2::theme_classic() +
+    ggplot2::guides(color = FALSE) +
+    ggplot2::theme(
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal'
+    ) +
+    ggplot2::labs(
+        x = "",
+        y = "",
+        fill = "frequency\n"
+    )
+    fig |>
+    ggplot2::ggsave(
+        filename = "extra/simulated_example/fig/fig-freq-1vs1.png",
+        height = 3.5,
+        width = 5.5,
+        dpi = 1200,
+    )
+"""
+
 # Run our test
-for idx in 1:1
+begin
     Random.seed!(1)
     nsims = 100
-    T, N, p = 200, 2, 2
-    warmup = 5000
-    neff = 500
-    thin = 10
+    T, N, p = 200, 3, 2
+    warmup = 2000# 5000
+    neff = 2000# 500
+    thin = 2
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]
     for sim in 1:nsims
-        println("idx: $idx, sim: $sim")
-        y, X, Z = samples[idx][sim]
+        println("sim: $sim")
+        y, X, Z = samples[sim]
         model = BNPVAR.DiracSSModel(; p, N, T, Z)
         for t in 1:iter
             AbstractGSBPs.step!(model)
@@ -90,32 +151,28 @@ for idx in 1:1
             end
         end
         # Save results
-        filename = "extra/simulated_example/gamma/gamma_$(idx)_$(sim).csv"
+        filename = "extra/simulated_example/gamma/gamma_$(sim).csv"
         df = DataFrame(hcat(chain_g...)' |> collect, :auto)
         R"""
         readr::write_csv($df, $filename)
         """
-        @show idx sim mode(chain_g)
     end
-    # # scores
-    # filename = "data$(idx)_dirac.csv"
-    # df = DataFrame(hcat(scores...)' |> collect, :auto)
-    # R"""
-    # readr::write_csv($df, $filename)
-    # """
 end
 
 # Summarizes the results
 R"""
 df <-
-    list.files(pattern = "extra/simulated_example/gamma") |>
+    list.files(
+        "extra/simulated_example/gamma",
+        full.names = TRUE
+    ) |>
     purrr::map_df(
         ~ .x |>
             readr::read_csv(show_col_types = FALSE) |>
             dplyr::count(x1, x2, x3, x4, x5, x6) |>
             magrittr::set_colnames(c(paste0("gamma", 1:6), "n")) |>
             dplyr::mutate(
-                sim = stringr::str_extract_all(.x, "\\d+")[[1]][2],
+                sim = stringr::str_extract_all(.x, "\\d+")[[1]][[1]],
                 sim = as.integer(sim)
             )
     ) |>
@@ -128,145 +185,29 @@ df <-
     dplyr::count(gamma)
 """
 
-R"""
-df |>
-    dplyr::mutate(highlight_red = gamma == "100000") |>
-    ggplot2::ggplot(
-        ggplot2::aes(
-            fill = highlight_red,
-            y = reorder(gamma, n),
-            x = n
-        )
-    ) +
-    ggplot2::geom_col() +
-    ggplot2::theme_classic() +
-    ggplot2::labs(
-        y = "MAP estimate of gamma",
-        x = "Number of ocurrences (across 100 simulations)",
-        title = "MAP estimates of gamma for 100 simulated datasets",
-        subtitle = "True gamma: 100000"
-    ) +
-    ggplot2::theme(
-        plot.title = ggplot2::element_text(size = 22),
-        text = ggplot2::element_text(size = 20),
-        legend.position = "top"
-    ) +
-    ggplot2::scale_fill_manual(values = c("grey", "red")) +
-    ggplot2::guides(fill = "none")
-"""
-
-# Run a Granger causality test on each sample
-begin
-    for idx in 1:6
-        freq_scores = -ones(100)
-        for i in 1:100
-            y, X, Y = samples[idx][i]
-            R"""
-            df <- data.frame($Y)
-            names(df) <- c("y1", "y2", "y3")
-            fit <-
-                df |>
-                vars::VAR(p = 1, type = "const")
-            out <-
-                fit |>
-                bruceR::granger_causality(
-                    var.y = "y1",
-                    var.x = "y2"
-                )
-            # pval <- out$result$p.Chisq
-            # out <-
-            #     fit |>
-            #     vars::causality(
-            #         cause = "y1",
-            #         boot = TRUE,
-            #         boot.runs = 1000
-            #     )
-            # pval <- out$Granger$p.value
-            """
-            # @rget pval
-            # freq_scores[i] = pval >= 0.05
-        end
-        # sum(freq_scores) / 100
-    end
-end
-
-R"""
-df <-
-    list.files(pattern = "*.csv") |>
-    readr::read_csv(id = "filename") |>
-    tidyr::unite("gamma", x1:x6, sep = "") |>
-    dplyr::mutate(id =  substring(filename, 5, 5) |> as.integer()) |>
-    dplyr::count(gamma, .by = id) |>
-    dplyr::arrange(.by, dplyr::desc(n))
-
-for (id in 1:6) {
-    true_gamma <- rep(0, 6)
-    true_gamma[id] <- 1
-    true_gamma <- paste0(true_gamma, collapse = "")
-    df |>
-        dplyr::filter(.by == id) |>
-        dplyr::mutate(gamma = reorder(gamma, n)) |>
-        ggplot2::ggplot(ggplot2::aes(y = gamma, x = n)) +
-        ggplot2::geom_col() +
-        ggplot2::labs(
-            title = "Distribucion empirica de las hipotesis seleccionadas por el algoritmo",
-            subtitle = paste0("usando 100 muestras simuladas con gamma = ", true_gamma)
-        )
-    ggplot2::ggsave(paste0("plot", id, ".png"))
-}
-"""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# for (p in c(2, 4)) {
-#   fit <-
-#     cleaned_data |>
-#     vars::VAR(p = p, type = "const")
-#
-#   varnames <-
-#     dplyr::tibble(cause = c("investment", "income", "consumption"))
-#
-#   varname_pairs <-
-#     varnames |>
-#     dplyr::cross_join(varnames) |>
-#     dplyr::rename(cause = cause.x, effect = cause.y) |>
-#     dplyr::filter(cause != effect)
-#
-#   pvals <-
-#     varname_pairs |>
-#     dplyr::rowwise() |>
-#     dplyr::mutate(
-#       pval =
-#         bruceR::granger_causality(
-#           varmodel = fit,
-#           var.y = effect,
-#           var.x = cause,
-#           test = "Chisq"
-#         ) |>
-#         magrittr::extract2("result") |>
-#         magrittr::extract2("p.Chisq"),
-#       nlags = p
-#     )
-#
-#   readr::write_csv(
-#     x = pvals,
-#     file = paste0(
-#       "C:/Users/Ivan/Documents/julia-projects/BNPVAR.jl/extra/chilean_example/",
-#       "pvals-1vs1-var",
-#       p,
-#       ".csv"
-#     )
-#   )
-# }
+# R"""
+# df |>
+#     dplyr::mutate(highlight_red = gamma == "100000") |>
+#     ggplot2::ggplot(
+#         ggplot2::aes(
+#             fill = highlight_red,
+#             y = reorder(gamma, n),
+#             x = n
+#         )
+#     ) +
+#     ggplot2::geom_col() +
+#     ggplot2::theme_classic() +
+#     ggplot2::labs(
+#         y = "MAP estimate of gamma",
+#         x = "Number of ocurrences (across 100 simulations)",
+#         title = "MAP estimates of gamma for 100 simulated datasets",
+#         subtitle = "True gamma: 100000"
+#     ) +
+#     ggplot2::theme(
+#         plot.title = ggplot2::element_text(size = 22),
+#         text = ggplot2::element_text(size = 20),
+#         legend.position = "top"
+#     ) +
+#     ggplot2::scale_fill_manual(values = c("grey", "red")) +
+#     ggplot2::guides(fill = "none")
+# """

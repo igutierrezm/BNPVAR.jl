@@ -6,6 +6,8 @@ using LinearAlgebra: logdet, lowrankupdate!, norm, svd
 using Distributions: Distributions, Gamma, InverseWishart, Uniform, rand!
 using AbstractGSBPs: AbstractGSBPs
 using BayesVAR: BayesVAR
+using OffsetArrays: OffsetArray
+# using
 
 # export Model, get_ij_pair
 export DiracSSModel, get_ij_pair
