@@ -20,11 +20,13 @@ function generate_sample()
     T, N, p = 200, 3, 1
     Z = randn(T, N)
     c = 0.5 * ones(N)
-    Σ = Matrix{Float64}(I(N))
+    Σ = 0.5 * Matrix{Float64}(I(N))
     A1 = 0.5 * Matrix{Float64}(I(N))
     A2 = deepcopy(A1)
-    A1[1, 2] = -0.5
-    A2[1, 2] = 0.5
+    A1[1, 2] = -0.7
+    A2[1, 2] = 0.7
+    # A1[3, 1] = -0.7
+    # A2[3, 1] = 0.7
     d = rand(T) .<= 0.3
     for t in 3:T
         if d[t]
@@ -132,11 +134,11 @@ fig <-
 # Run our test
 begin
     Random.seed!(1)
-    nsims = 100
+    nsims = 1
     T, N, p = 200, 3, 2
-    warmup = 2000# 5000
-    neff = 2000# 500
-    thin = 2
+    warmup = 10000# 5000
+    neff = 100# 500
+    thin = 5
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]

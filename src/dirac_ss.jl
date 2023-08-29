@@ -11,6 +11,7 @@ struct DiracSSModel <: AbstractGSBPs.AbstractGSBP
     S0::Matrix{Float64}
     v0::Int
     q0::Float64
+    ζ0::Float64
     # Parameters
     β::Vector{Vector{Float64}}
     Σ::Vector{Matrix{Float64}}
@@ -22,7 +23,8 @@ struct DiracSSModel <: AbstractGSBPs.AbstractGSBP
     function DiracSSModel(; p, N, T, Z,
         S0::Matrix{Float64} = 1.0 * I(N) |> collect,
         v0::Int = N + 1,
-        q0::Float64 = 2.0,
+        q0::Float64 = 1.0,
+        ζ0::Float64 = 1.0,
         g::Vector{Bool} = ones(Bool, N * (N - 1)),
         gdict::Dict{Int, Vector{Int}} = init_gdict(N, p)
     )
@@ -42,7 +44,7 @@ struct DiracSSModel <: AbstractGSBPs.AbstractGSBP
             gaugmented[value] .= g[key]
         end
         skl = AbstractGSBPs.GSBPSkeleton(; y = yvec, x = Xvec)
-        new(p, N, T - p, y, X, yvec, Xvec, S0, v0, q0, β, Σ, g, gdict, gaugmented, skl)
+        new(p, N, T - p, y, X, yvec, Xvec, S0, v0, q0, ζ0, β, Σ, g, gdict, gaugmented, skl)
     end
 end
 
@@ -56,10 +58,11 @@ end
 function init_gdict(N, p)
     out = Dict{Int, Vector{Int}}()
     for idx in 1:(N * (N - 1))
-        i = 1 + (idx ÷ N)
-        j = 1 + (idx - 1) % (N - 1)
-        j += j >= i
-        tmp = [(p * N + 1) * (j - 1) + N * (m - 1) + i + 1 for m in 1:p]
+        # i = 1 + (idx ÷ N)
+        # j = 1 + (idx - 1) % (N - 1)
+        # j += j >= i
+        cause, effect = get_ij_pair(idx, N)
+        tmp = [(p * N + 1) * (effect - 1) + 1 + cause + N * (m - 1) for m in 1:p]
         out[idx] = deepcopy(tmp)
     end
     return out
@@ -151,10 +154,10 @@ function update_Σ!(model::SubModel, yvec, Xvec, β, Σ)
 end
 
 function update_g!(model, K)
-    (; N, g, gdict, gaugmented) = model
+    (; N, g, ζ0, gdict, gaugmented) = model
     switched_index = rand(1:length(g))
     log_bf = get_log_bf(model, switched_index, K)
-    pγ0 = ph0(N * (N - 1), 1.0)
+    pγ0 = ph0(N * (N - 1), ζ0)
     sumg_old = sum(g)
     sumg_new = sumg_old + 1 - 2 * g[switched_index]
     log_prior_odds = log(pγ0[sumg_new]) - log(pγ0[sumg_old])
