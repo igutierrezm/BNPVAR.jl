@@ -23,10 +23,10 @@ function generate_sample()
     Σ = 0.5 * Matrix{Float64}(I(N))
     A1 = 0.5 * Matrix{Float64}(I(N))
     A2 = deepcopy(A1)
-    A1[1, 2] = -0.7
-    A2[1, 2] = 0.7
-    # A1[3, 1] = -0.7
-    # A2[3, 1] = 0.7
+    A1[1, 2] = -0.5
+    A2[1, 2] = +0.5
+    A1[3, 1] = -0.5
+    A2[3, 1] = +0.5
     d = rand(T) .<= 0.3
     for t in 3:T
         if d[t]
@@ -86,6 +86,7 @@ fig <-
         i = paste0("y", i),
         j = paste0("y", j)
     ) |>
+    dplyr::filter(i != j) |>
     dplyr::rename(`# lags` = p) |>
     ggplot2::ggplot(
         ggplot2::aes(
@@ -95,9 +96,9 @@ fig <-
             label = freq
         )
     ) +
-    ggplot2::geom_tile() +
+    ggplot2::geom_tile(stat = "identity") +
     ggplot2::geom_text(
-        ggplot2::aes(color = ifelse(freq > 0.9, "1", "2"))
+        ggplot2::aes(color = ifelse(freq > 50, "1", "2"))
     ) +
     ggplot2::facet_wrap(
         ggplot2::vars(`# lags`),
@@ -109,7 +110,9 @@ fig <-
         direction = 1,
         palette = "Greys"
     ) +
-    ggplot2::scale_colour_manual(values = c("white", "black")) +
+    ggplot2::scale_colour_manual(
+        values = c("white", "black")
+    ) +
     ggplot2::theme_classic() +
     ggplot2::guides(color = FALSE) +
     ggplot2::theme(
@@ -118,13 +121,13 @@ fig <-
         legend.direction = 'horizontal'
     ) +
     ggplot2::labs(
-        x = "",
-        y = "",
+        x = "cause",
+        y = "effect",
         fill = "frequency\n"
     )
     fig |>
     ggplot2::ggsave(
-        filename = "extra/simulated_example/fig/fig-freq-1vs1.png",
+        filename = "extra/simulated_example/fig/fig-simulated-freq-1vs1.png",
         height = 3.5,
         width = 5.5,
         dpi = 1200,
@@ -134,15 +137,15 @@ fig <-
 # Run our test
 begin
     Random.seed!(1)
-    nsims = 1
+    nsims = 100
     T, N, p = 200, 3, 2
-    warmup = 10000# 5000
-    neff = 100# 500
+    warmup = 10000
+    neff = 500
     thin = 5
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]
-    for sim in 1:nsims
+    for p in 1:2, sim in 1:nsims
         println("sim: $sim")
         y, X, Z = samples[sim]
         model = BNPVAR.DiracSSModel(; p, N, T, Z)
@@ -153,7 +156,7 @@ begin
             end
         end
         # Save results
-        filename = "extra/simulated_example/gamma/gamma_$(sim).csv"
+        filename = "extra/simulated_example/gamma/gamma_$(p)_$(sim).csv"
         df = DataFrame(hcat(chain_g...)' |> collect, :auto)
         R"""
         readr::write_csv($df, $filename)
@@ -161,9 +164,43 @@ begin
     end
 end
 
-# Summarizes the results
+# # Compute the joint posterior
+# R"""
+# df_joint_posterior <-
+#     list.files(
+#         "extra/simulated_example/gamma",
+#         full.names = TRUE
+#     ) |>
+#     magrittr::extract(1:10) |>
+#     purrr::map_df(
+#         ~ .x |>
+#             readr::read_csv(show_col_types = FALSE) |>
+#             dplyr::count(x1, x2, x3, x4, x5, x6) |>
+#             magrittr::set_colnames(c(paste0("g", 1:6), "n")) |>
+#             dplyr::mutate(
+#                 sim = stringr::str_extract_all(.x, "\\d+")[[1]][[1]],
+#                 sim = as.integer(sim)
+#             )
+#     ) |>
+#     dplyr::summarize(
+#         prob = mean(n / 500),
+#         .by = g1:g6
+#     )
+# """
+
+# Compute the cause-effect relationship associated to each gamma
+begin
+    df_gamma_dict = DataFrame(cause = Int[], effect = Int[], idx = Int[])
+    for idx in 1:6
+        cause, effect = get_ij_pair(idx, N)
+        push!(df_gamma_dict, (cause, effect, idx))
+    end
+    @rput df_gamma_dict
+end
+
+# Compute the 1vs1 decisions of our test
 R"""
-df <-
+df_bayes_1vs1_decisions <-
     list.files(
         "extra/simulated_example/gamma",
         full.names = TRUE
@@ -171,45 +208,77 @@ df <-
     purrr::map_df(
         ~ .x |>
             readr::read_csv(show_col_types = FALSE) |>
-            dplyr::count(x1, x2, x3, x4, x5, x6) |>
-            magrittr::set_colnames(c(paste0("gamma", 1:6), "n")) |>
+            magrittr::set_colnames(paste0("g", 1:6)) |>
+            dplyr::summarize(
+                dplyr::across(g1:g6, mean)
+            ) |>
             dplyr::mutate(
-                sim = stringr::str_extract_all(.x, "\\d+")[[1]][[1]],
-                sim = as.integer(sim)
+                p = stringr::str_extract_all(.x, "\\d+")[[1]][[1]],
+                sim = stringr::str_extract_all(.x, "\\d+")[[1]][[2]],
+                sim = as.integer(sim),
+                p = as.integer(p)
             )
     ) |>
-    dplyr::arrange(sim, dplyr::desc(n)) |>
-    dplyr::group_by(sim) |>
-    dplyr::slice(1) |>
-    dplyr::mutate(dplyr::across(gamma1:gamma6, as.character)) |>
-    tidyr::unite("gamma", gamma1:gamma6, sep = "") |>
-    dplyr::ungroup() |>
-    dplyr::count(gamma)
+    tidyr::pivot_longer(g1:g6) |>
+    dplyr::summarize(
+        freq = sum(value > 0.5),
+        .by = c(p, name)
+    ) |>
+    dplyr::rename(idx = name) |>
+    dplyr::mutate(idx = gsub("g", "", idx) |> as.integer()) |>
+    dplyr::inner_join(df_gamma_dict) |>
+    dplyr::mutate(
+        cause = paste0("y", cause),
+        effect = paste0("y", effect)
+    )
 """
 
-# R"""
-# df |>
-#     dplyr::mutate(highlight_red = gamma == "100000") |>
-#     ggplot2::ggplot(
-#         ggplot2::aes(
-#             fill = highlight_red,
-#             y = reorder(gamma, n),
-#             x = n
-#         )
-#     ) +
-#     ggplot2::geom_col() +
-#     ggplot2::theme_classic() +
-#     ggplot2::labs(
-#         y = "MAP estimate of gamma",
-#         x = "Number of ocurrences (across 100 simulations)",
-#         title = "MAP estimates of gamma for 100 simulated datasets",
-#         subtitle = "True gamma: 100000"
-#     ) +
-#     ggplot2::theme(
-#         plot.title = ggplot2::element_text(size = 22),
-#         text = ggplot2::element_text(size = 20),
-#         legend.position = "top"
-#     ) +
-#     ggplot2::scale_fill_manual(values = c("grey", "red")) +
-#     ggplot2::guides(fill = "none")
-# """
+# Create a 1vs1 analog of the frequentist summary
+# Plot the results of the frequentist test
+R"""
+fig <-
+    df_bayes_1vs1_decisions |>
+    dplyr::rename(`# lags` = p) |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            x = cause,
+            y = effect,
+            fill = freq,
+            label = round(freq, 2)
+        )
+    ) +
+    ggplot2::geom_tile() +
+    ggplot2::geom_text(
+        ggplot2::aes(color = ifelse(freq > 80, "1", "2"))
+    ) +
+    ggplot2::facet_wrap(
+        ggplot2::vars(`# lags`),
+        labeller = "label_both",
+        ncol = 2
+    ) +
+    ggplot2::scale_fill_distiller(
+        type = "seq",
+        direction = -1,
+        palette = "Greys"
+    ) +
+    ggplot2::scale_colour_manual(values = c("white", "black")) +
+    ggplot2::theme_classic() +
+    ggplot2::guides(color = FALSE) +
+    ggplot2::theme(
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal'
+    ) +
+    ggplot2::labs(
+        x = "cause",
+        y = "effect",
+        fill = "frequency\n"
+    )
+    fig |>
+    ggplot2::ggsave(
+        filename = "extra/simulated_example/fig/fig-simulated-bayes-1vs1.png",
+        height = 3.5,
+        width = 5.5,
+        dpi = 1200,
+    )
+"""

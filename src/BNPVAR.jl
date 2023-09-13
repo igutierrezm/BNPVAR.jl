@@ -9,6 +9,8 @@ using BayesVAR: BayesVAR
 using OffsetArrays: OffsetArray
 # using
 
+const AG = AbstractGSBPs
+
 # export Model, get_ij_pair
 export DiracSSModel, get_ij_pair
 

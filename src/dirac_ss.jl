@@ -243,27 +243,27 @@ function get_c(m::DiracSSModel, cl::Int)
     return c
 end
 
-# Generate the "big A" matrix (for cluster cl) using the current state
-function get_A(m::DiracSSModel, cl::Int)
+# Generate the "big C" matrix (for cluster cl) using the current state
+function get_C(m::DiracSSModel, cl::Int)
     (; N, p) = m
     Aks = [get_Ak(m, cl, k) for k in 1:p]
-    A = [hcat(Aks...); I(N * (p - 1)) zeros(N * (p - 1), N)]
-    return Matrix{Float64}(A)
+    C = [hcat(Aks...); I(N * (p - 1)) zeros(N * (p - 1), N)]
+    return Matrix{Float64}(C)
 end
 
-# Generate the "big A" matrix (from a submodel) using the current state
-function get_A(m::SubModel, β::Vector{Float64})
+# Generate the "big C" matrix (from a submodel) using the current state
+function get_C(m::SubModel, β::Vector{Float64})
     (; N, p) = m
     Aks = [get_Ak(m, β, k) for k in 1:p]
-    A = [hcat(Aks...); I(N * (p - 1)) zeros(N * (p - 1), N)]
-    return Matrix{Float64}(A)
+    C = [hcat(Aks...); I(N * (p - 1)) zeros(N * (p - 1), N)]
+    return Matrix{Float64}(C)
 end
 
 function get_irf(m::DiracSSModel, max_horizon = 10)
     (; N, β) = m
     nclus = length(β)
     weights = [AbstractGSBPs.gen_mixture_weight(m, h) for h in 1:nclus]
-    weighted_Ahs = [weights[h] * get_A(m, h) for h in 1:nclus]
+    weighted_Ahs = [weights[h] * get_C(m, h) for h in 1:nclus]
     B = sum(weighted_Ahs)
     F = svd(B)
     irfs = [F.U * Diagonal(F.S .^ horizon) * F.Vt for horizon in 1:max_horizon]
@@ -288,4 +288,20 @@ function ph0(m, ζ)
         p[l] /= binomial(m, l)
     end
     return p
+end
+
+function get_irf2(m::DiracSSModel, hmax = 10)
+    (; N, β) = m
+    nclus = length(β)
+    C = [get_C(m, clus) for clus in 1:nclus]
+    rnew = AG.rand_rnew(m)
+    dnew = AG.rand_dnew(m, rnew)
+    D = [C[dnew]]
+    for h in 2:hmax
+        rnew = AG.rand_rnew(m)
+        dnew = AG.rand_dnew(m, rnew)
+        push!(D, D[end] * C[min(dnew, nclus)])
+    end
+    out = [D[h][1:N, 1:N] for h in 1:hmax]
+    return out
 end

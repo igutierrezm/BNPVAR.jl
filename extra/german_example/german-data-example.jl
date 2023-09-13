@@ -1,4 +1,5 @@
 begin
+    using Revise
     using AbstractGSBPs
     using BNPVAR
     using DataFrames
@@ -15,14 +16,14 @@ library(bruceR)
 
 R"""
 cleaned_data <-
-    'extra/chilean_example/data/data.xlsx' |>
-    readxl::read_xlsx(skip = 2) |>
+    'extra/german_example/data/data.xlsx' |>
+    readxl::read_xlsx() |>
     dplyr::as_tibble() |>
     janitor::clean_names() |>
     dplyr::mutate(
-        income = log(x7_ingreso_nacional_bruto_disponible),
-        investment = log(x12_formacion_bruta_de_capital_fijo),
-        consumption = log(x8_consumo_total)
+        income = log(income),
+        investment = log(invest),
+        consumption = log(cons)
     ) |>
     dplyr::select(investment, income, consumption) |>
     dplyr::mutate(
@@ -39,7 +40,7 @@ cleaned_data <-
         )
     )
 cleaned_data |>
-    readr::write_csv(file = "extra/chilean_example/data/cleaned_data.xlsx")
+    readr::write_csv(file = "extra/german_example/data/cleaned_data.xlsx")
 """
 
 begin
@@ -53,8 +54,8 @@ end;
 begin
     Random.seed!(1)
     warmup = 10000
-    neff = 4000
-    thin = 10
+    neff = 2000
+    thin = 5
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     for p in [2, 4]
@@ -66,7 +67,7 @@ begin
             end
         end
         df = DataFrame(hcat(chain_g...)' |> collect, :auto)
-        filename = "extra/chilean_example/gamma/gamma_var_$p.csv"
+        filename = "extra/german_example/gamma/gamma_var_$p.csv"
         R"""
         $df |>
             dplyr::mutate(nlags = $p) |>
@@ -80,7 +81,7 @@ R"""
 varnames_df <-
     data.frame(
         id = c(1, 2, 3),
-        varname = c("investment", "income", "consumption")
+        varname = c("investment", "income", "consumption") |> factor()
     )
 """
 
@@ -95,45 +96,26 @@ begin
             cause_id = $cause_id,
             effect_id = $effect_id
         ) |>
-        dplyr::inner_join(varnames_df, by = dplyr::join_by(cause_id == id)) |>
+        dplyr::inner_join(
+            varnames_df,
+            by = dplyr::join_by(cause_id == id)
+        ) |>
         dplyr::rename(cause_var = varname) |>
-        dplyr::inner_join(varnames_df, by = dplyr::join_by(effect_id == id)) |>
-        dplyr::rename(effect_var = varname) #|>
-        # dplyr::select(-cause_id, -effect_id)
+        dplyr::inner_join(
+            varnames_df,
+            by = dplyr::join_by(effect_id == id)
+        ) |>
+        dplyr::rename(effect_var = varname)
     """
 end
 
 # Reload the results
 R"""
 df <-
-    "extra/chilean_example/gamma/" |>
+    "extra/german_example/gamma/" |>
     list.files("gamma_var*", full.names = TRUE) |>
     purrr::map_df(readr::read_csv)
 """
-
-# # Summarize the results: modal-model
-# R"""
-# mod_gamma <-
-#     df |>
-#     dplyr::mutate(gamma = paste0(x1, x2, x3, x4, x5, x6)) |>
-#     dplyr::mutate(n = dplyr::n(), .by = c(gamma, nlags)) |>
-#     dplyr::arrange(dplyr::desc(n)) |>
-#     dplyr::slice(1) |>
-#     dplyr::select(-gamma, -n) |>
-#     tidyr::pivot_longer(x1:x6) |>
-#     dplyr::inner_join(cause_effect_df) |>
-#     dplyr::select(cause_var, effect_var, value)
-# """
-
-# # Summarize the results: median-model
-# R"""
-# med_gamma <-
-#     df |>
-#     tidyr::pivot_longer(x1:x6) |>
-#     dplyr::summarize(med = median(value), .by = "name") |>
-#     dplyr::inner_join(cause_effect_df) |>
-#     dplyr::select(cause_var, effect_var, med)
-# """
 
 # Summarize the results: 1vs1 heatmap
 R"""
@@ -183,7 +165,7 @@ fig <-
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/chilean_example/fig/fig-prob-1vs1.png",
+        filename = "extra/german_example/fig/fig-prob-1vs1.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,
@@ -245,7 +227,7 @@ fig <-
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/chilean_example/fig/fig-prob-2vs1-investment.png",
+        filename = "extra/german_example/fig/fig-prob-2vs1-investment.png",
         height = 3.5,
         width = 5.5,
         dpi = 1200,
@@ -288,7 +270,7 @@ R"""
 
     readr::write_csv(
         x = pvals,
-        file = paste0("extra/chilean_example/pvals/pvals-1vs1-", p, ".csv")
+        file = paste0("extra/german_example/pvals/pvals-1vs1-", p, ".csv")
     )
 }
 """
@@ -296,7 +278,7 @@ R"""
 # Plot the results
 R"""
 fig <-
-    "extra/chilean_example/pvals" |>
+    "extra/german_example/pvals" |>
     list.files("pvals-1vs1-*", full.names = TRUE) |>
     purrr::map_df(readr::read_csv) |>
     dplyr::rename(`# lags` = nlags) |>
@@ -341,9 +323,111 @@ fig <-
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/chilean_example/fig/fig-pval-1vs1.png",
+        filename = "extra/german_example/fig/fig-pval-1vs1.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,
     )
 """
+
+# Try our IRF function
+begin
+    Random.seed!(1)
+    warmup = 20000
+    neff = 5000
+    thin = 10
+    hmax = 16
+    iter = warmup + neff * thin
+    chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
+    chain_irf = [[zeros(N, N) for _ in 1:hmax] for _ in 1:neff]
+    for p in [2, 4]
+        model = BNPVAR.DiracSSModel(; p, N, T, Z)
+        for t in 1:iter
+            AbstractGSBPs.step!(model)
+            if (t > warmup) && ((t - warmup) % thin == 0)
+                chain_g[(t - warmup) ÷ thin] .= model.g
+                irf = BNPVAR.get_irf2(model, hmax)
+                for h in 1:hmax
+                    chain_irf[(t - warmup) ÷ thin][h] .= irf[h]
+                end
+            end
+        end
+    end
+end
+
+# Convert our IRF into a data.frame
+begin
+    df_chain_irf =
+        map(1:length(chain_irf)) do iter
+            vec_irf = vcat(vec.(chain_irf[iter])...)
+            ncells = length(vec_irf)
+            df = DataFrame(irf = vec_irf)
+            df[!, :horizon] = 1 .+ (0:ncells - 1) .÷ N^2
+            df[!, :effect_id] = 1 .+ (0:ncells - 1) .% N
+            df[!, :cause_id] = 1 .+ ((0:ncells - 1) .÷ N) .% N
+            df[!, :iter] .= iter
+            df
+        end |>
+        (x) -> reduce(vcat, x)
+end
+
+# Plot the IRF
+R"""
+fig <-
+    $df_chain_irf |>
+    dplyr::inner_join(
+        varnames_df,
+        by = dplyr::join_by(cause_id == id)
+    ) |>
+    dplyr::rename(cause_var = varname) |>
+    dplyr::inner_join(
+        varnames_df,
+        by = dplyr::join_by(effect_id == id)
+    ) |>
+    dplyr::rename(effect_var = varname) |>
+    dplyr::mutate(
+        effect_var =
+            factor(
+                effect_var,
+                levels = effect_var |> levels() |> rev()
+            )
+    ) #|>
+    dplyr::group_by(cause_var, effect_var, horizon) |>
+    dplyr::summarize(
+        irf_mean = mean(irf),
+        irf_lb = quantile(irf, 0.05),
+        irf_ub = quantile(irf, 0.95)
+    ) #|>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            x = horizon,
+            y = irf_mean,
+            ymin = irf_lb,
+            ymax = irf_ub
+        )
+    ) +
+    ggplot2::geom_ribbon(fill = "grey80") +
+    ggplot2::geom_line() +
+    ggplot2::geom_hline(
+        yintercept = 0,
+        linetype = "dashed",
+        alpha = 0.3
+    ) +
+    ggplot2::facet_grid(
+        cols = ggplot2::vars(cause_var),
+        rows = ggplot2::vars(effect_var)
+    ) +
+    ggplot2::theme_classic() +
+    ggplot2::labs(
+        x = "cause",
+        y = "effect",
+        fill = "IRF"
+    )
+fig |>
+    ggplot2::ggsave(
+        filename = "extra/german_example/fig/fig-irf.png",
+        dpi = 1200,
+        height = 3.5,
+        width = 5.5,
+    )
+""";
