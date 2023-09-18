@@ -259,18 +259,6 @@ function get_C(m::SubModel, β::Vector{Float64})
     return Matrix{Float64}(C)
 end
 
-function get_irf(m::DiracSSModel, max_horizon = 10)
-    (; N, β) = m
-    nclus = length(β)
-    weights = [AbstractGSBPs.gen_mixture_weight(m, h) for h in 1:nclus]
-    weighted_Ahs = [weights[h] * get_C(m, h) for h in 1:nclus]
-    B = sum(weighted_Ahs)
-    F = svd(B)
-    irfs = [F.U * Diagonal(F.S .^ horizon) * F.Vt for horizon in 1:max_horizon]
-    relevant_irfs = getindex.(irfs, Ref(1:N), Ref(1:N))
-    return relevant_irfs
-end
-
 """
     Return an offset vector `p`, where p[i] is the prior
     probability of any hypothesis such that sum_{j=1}^m γj = i,
@@ -290,7 +278,7 @@ function ph0(m, ζ)
     return p
 end
 
-function get_irf2(m::DiracSSModel, hmax = 10)
+function get_irf(m::DiracSSModel, hmax = 10)
     (; N, β) = m
     nclus = length(β)
     C = [get_C(m, clus) for clus in 1:nclus]

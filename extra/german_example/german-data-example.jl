@@ -346,7 +346,7 @@ begin
             AbstractGSBPs.step!(model)
             if (t > warmup) && ((t - warmup) % thin == 0)
                 chain_g[(t - warmup) ÷ thin] .= model.g
-                irf = BNPVAR.get_irf2(model, hmax)
+                irf = BNPVAR.get_irf(model, hmax)
                 for h in 1:hmax
                     chain_irf[(t - warmup) ÷ thin][h] .= irf[h]
                 end
@@ -431,3 +431,5 @@ fig |>
         width = 5.5,
     )
 """;
+
+d
