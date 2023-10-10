@@ -1,6 +1,6 @@
 module BNPVAR
 
-using LinearAlgebra: I, Diagonal, Symmetric
+using LinearAlgebra: LinearAlgebra, I, Diagonal, Symmetric
 using LinearAlgebra: cholesky, inv, kron, ldiv!
 using LinearAlgebra: logdet, lowrankupdate!, norm, svd
 using Distributions: Distributions, Gamma, InverseWishart, Uniform, rand!
