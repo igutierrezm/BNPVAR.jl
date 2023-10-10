@@ -278,18 +278,29 @@ function ph0(m, ζ)
     return p
 end
 
+# Return [D[τ - 1] for τ in 1:length(dpath)]
+function get_all_Ds(m::DiracSSModel, dpath::Vector{Int})
+    (; β) = m
+    nclus = length(β)
+    hmax = length(dpath)
+    C = [get_C(m, clus) for clus in 1:nclus]
+    D = [C[dpath[hmax]]]
+    for τ in 1:(hmax - 1)
+        push!(D, D[end] * C[dpath[hmax - τ]])
+    end
+    return D
+end
+
 function get_irf(m::DiracSSModel, hmax = 10)
     (; N, β) = m
+    dpath = zeros(Int, hmax)
     nclus = length(β)
-    C = [get_C(m, clus) for clus in 1:nclus]
-    rnew = AG.rand_rnew(m)
-    dnew = AG.rand_dnew(m, rnew)
-    D = [C[dnew]]
-    for h in 2:hmax
+    for h in 1:hmax
         rnew = AG.rand_rnew(m)
         dnew = AG.rand_dnew(m, rnew)
-        push!(D, D[end] * C[min(dnew, nclus)])
+        dpath[h] = min(dnew, nclus)
     end
-    out = [D[h][1:N, 1:N] for h in 1:hmax]
+    Ds = get_all_Ds(m, dpath)
+    out = [Ds[h][1:N, 1:N] for h in 1:hmax]
     return out
 end
