@@ -333,8 +333,8 @@ end
 
 # Approximate the true irf
 begin
-    true_irf_chain = [generate_irf(16) for _ in 1:10000]
-    true_irf = [mean([true_irf_chain[iter][h] for iter in 1:10000]) for h in 1:16]
+    true_irf_chain = [generate_irf(16) for _ in 1:1000]
+    true_irf = [mean([true_irf_chain[iter][h] for iter in 1:1000]) for h in 1:16]
     df_true_irf = DataFrame(
         horizon = Int[],
         cause_id = Int[],
@@ -397,7 +397,7 @@ end
 
 # Plot the fitted IRF
 R"""
-fig <-
+fig_data <-
     $df_chain_irf |>
     dplyr::inner_join(
         varnames_df,
@@ -416,27 +416,48 @@ fig <-
                 levels = effect_var |> levels() |> rev()
             )
     ) |>
-    dplyr::group_by(cause_var, effect_var, horizon) |>
+    dplyr::group_by(cause_var, effect_var, cause_id, effect_id, horizon) |>
     dplyr::summarize(
         irf_mean = mean(irf),
         irf_lb = quantile(irf, 0.05),
         irf_ub = quantile(irf, 0.95)
     ) |>
+    dplyr::inner_join($df_true_irf) |>
+    tidyr::pivot_longer(
+        c(irf_mean, true_irf),
+        names_to = "variable",
+        values_to = "irf"
+    ) |>
+    dplyr::mutate(
+        variable =
+            variable |>
+            dplyr::case_match(
+                "irf_mean" ~ "fitted",
+                "true_irf" ~ "true"
+            )
+    )
+
+fig <-
+    fig_data |>
     ggplot2::ggplot(
         ggplot2::aes(
             x = horizon,
-            y = irf_mean,
+            y = irf,
             ymin = irf_lb,
-            ymax = irf_ub
+            ymax = irf_ub,
+            linetype = variable
         )
     ) +
     ggplot2::geom_ribbon(fill = "grey80") +
-    ggplot2::geom_line() +
-    ggplot2::geom_hline(
-        yintercept = 0,
-        linetype = "dashed",
-        alpha = 0.3
-    ) +
+    ggplot2::geom_line(alpha = 0.7) +
+    # ggplot2::geom_line(
+    #     ggplot2::aes(linetype = true_tmp)
+    # ) +
+    # ggplot2::geom_hline(
+    #     yintercept = 0,
+    #     linetype = "dashed",
+    #     alpha = 0.3
+    # ) +
     ggplot2::facet_grid(
         cols = ggplot2::vars(cause_var),
         rows = ggplot2::vars(effect_var)
@@ -446,64 +467,17 @@ fig <-
         x = "cause",
         y = "effect",
         fill = "IRF"
+    ) +
+    ggplot2::scale_linetype_manual(
+        name = "IRF",
+        values = c("solid", "dotdash"),
+        labels = c("fitted", "true")
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/simulated_example/fig/fig-irf-fitted.png",
+        filename = "extra/simulated_example/fig/fig-simulated-irf.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,
     )
-""";
-
-# Plot the true IRF
-R"""
-fig <-
-    $df_true_irf |>
-    dplyr::inner_join(
-        varnames_df,
-        by = dplyr::join_by(cause_id == id)
-    ) |>
-    dplyr::rename(cause_var = varname) |>
-    dplyr::inner_join(
-        varnames_df,
-        by = dplyr::join_by(effect_id == id)
-    ) |>
-    dplyr::rename(effect_var = varname) |>
-    dplyr::mutate(
-        effect_var =
-            factor(
-                effect_var,
-                levels = effect_var |> levels() |> rev()
-            )
-    ) |>
-    ggplot2::ggplot(
-        ggplot2::aes(
-            x = horizon,
-            y = true_irf
-        )
-    ) +
-    ggplot2::geom_line() +
-    ggplot2::geom_hline(
-        yintercept = 0,
-        linetype = "dashed",
-        alpha = 0.3
-    ) +
-    ggplot2::facet_grid(
-        cols = ggplot2::vars(cause_var),
-        rows = ggplot2::vars(effect_var)
-    ) +
-    ggplot2::theme_classic() +
-    ggplot2::labs(
-        x = "cause",
-        y = "effect",
-        fill = "IRF"
-    )
-fig |>
-    ggplot2::ggsave(
-        filename = "extra/simulated_example/fig/fig-irf-true.png",
-        dpi = 1200,
-        height = 3.5,
-        width = 5.5,
-    )
-""";
+"""
