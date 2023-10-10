@@ -42,6 +42,27 @@ function generate_sample()
     return y, X, Z
 end
 
+# Simulate the IRF associated to the simulated model
+function generate_irf(hmax::Int)
+    A1 = 0.5 * Matrix{Float64}(I(3))
+    A2 = deepcopy(A1)
+    A1[1, 2] = -0.5
+    A2[1, 2] = +0.5
+    A1[3, 1] = -0.5
+    A2[3, 1] = +0.5
+    d = rand(hmax) .<= 0.3
+    irf = [I(3) |> Matrix{Float64} for h in 1:hmax]
+    irf[1] = d[1] == 1 ? A1 : A2
+    for h in 2:hmax
+        if d[h] == 1
+            irf[h] .= A1 * irf[h - 1]
+        else
+            irf[h] .= A2 * irf[h - 1]
+        end
+    end
+    return irf
+end
+
 # Generate 100 samples
 begin
     Random.seed!(1)
@@ -282,3 +303,207 @@ fig <-
         dpi = 1200,
     )
 """
+
+# Try our IRF function
+begin
+    Random.seed!(1)
+    warmup = 10000
+    neff = 2000
+    thin = 5
+    p = 2
+    hmax = 16
+    iter = warmup + neff * thin
+    y, X, Z = samples[1]
+    T, N = size(Z)
+    chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
+    chain_irf = [[zeros(N, N) for _ in 1:hmax] for _ in 1:neff]
+    model = BNPVAR.DiracSSModel(; p, N, T, Z)
+    for t in 1:iter
+        @show t
+        AbstractGSBPs.step!(model)
+        if (t > warmup) && ((t - warmup) % thin == 0)
+            chain_g[(t - warmup) ÷ thin] .= model.g
+            irf = BNPVAR.get_irf(model, hmax)
+            for h in 1:hmax
+                chain_irf[(t - warmup) ÷ thin][h] .= irf[h]
+            end
+        end
+    end
+end
+
+# Approximate the true irf
+begin
+    true_irf_chain = [generate_irf(16) for _ in 1:10000]
+    true_irf = [mean([true_irf_chain[iter][h] for iter in 1:10000]) for h in 1:16]
+    df_true_irf = DataFrame(
+        horizon = Int[],
+        cause_id = Int[],
+        effect_id = Int[],
+        true_irf = Float64[]
+    )
+    for i in 1:3, j in 1:3, h in 1:16
+        push!(df_true_irf, (h, i, j, true_irf[h][j, i]))
+    end
+end
+
+# Convert our IRF into a data.frame
+begin
+    df_chain_irf =
+        map(1:length(chain_irf)) do iter
+            vec_irf = vcat(vec.(chain_irf[iter])...)
+            ncells = length(vec_irf)
+            df = DataFrame(irf = vec_irf)
+            df[!, :horizon] = 1 .+ (0:ncells - 1) .÷ N^2
+            df[!, :effect_id] = 1 .+ (0:ncells - 1) .% N
+            df[!, :cause_id] = 1 .+ ((0:ncells - 1) .÷ N) .% N
+            df[!, :iter] .= iter
+            df
+        end |>
+        (x) -> reduce(vcat, x)
+end
+
+# Compute the relationship between the variable id and its name
+R"""
+varnames_df <-
+    data.frame(
+        id = c(1, 2, 3),
+        varname = c("y1", "y2", "y3") |> factor()
+    )
+"""
+
+# Compute the relationship between the x's and the cause/effect relationships
+begin
+    cause_id = getindex.(get_ij_pair.(1:(N * (N - 1)), N), 1)
+    effect_id = getindex.(get_ij_pair.(1:(N * (N - 1)), N), 2)
+    R"""
+    cause_effect_df <-
+        data.frame(
+            name = paste0("x", 1:6),
+            cause_id = $cause_id,
+            effect_id = $effect_id
+        ) |>
+        dplyr::inner_join(
+            varnames_df,
+            by = dplyr::join_by(cause_id == id)
+        ) |>
+        dplyr::rename(cause_var = varname) |>
+        dplyr::inner_join(
+            varnames_df,
+            by = dplyr::join_by(effect_id == id)
+        ) |>
+        dplyr::rename(effect_var = varname)
+    """
+end
+
+# Plot the fitted IRF
+R"""
+fig <-
+    $df_chain_irf |>
+    dplyr::inner_join(
+        varnames_df,
+        by = dplyr::join_by(cause_id == id)
+    ) |>
+    dplyr::rename(cause_var = varname) |>
+    dplyr::inner_join(
+        varnames_df,
+        by = dplyr::join_by(effect_id == id)
+    ) |>
+    dplyr::rename(effect_var = varname) |>
+    dplyr::mutate(
+        effect_var =
+            factor(
+                effect_var,
+                levels = effect_var |> levels() |> rev()
+            )
+    ) |>
+    dplyr::group_by(cause_var, effect_var, horizon) |>
+    dplyr::summarize(
+        irf_mean = mean(irf),
+        irf_lb = quantile(irf, 0.05),
+        irf_ub = quantile(irf, 0.95)
+    ) |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            x = horizon,
+            y = irf_mean,
+            ymin = irf_lb,
+            ymax = irf_ub
+        )
+    ) +
+    ggplot2::geom_ribbon(fill = "grey80") +
+    ggplot2::geom_line() +
+    ggplot2::geom_hline(
+        yintercept = 0,
+        linetype = "dashed",
+        alpha = 0.3
+    ) +
+    ggplot2::facet_grid(
+        cols = ggplot2::vars(cause_var),
+        rows = ggplot2::vars(effect_var)
+    ) +
+    ggplot2::theme_classic() +
+    ggplot2::labs(
+        x = "cause",
+        y = "effect",
+        fill = "IRF"
+    )
+fig |>
+    ggplot2::ggsave(
+        filename = "extra/simulated_example/fig/fig-irf-fitted.png",
+        dpi = 1200,
+        height = 3.5,
+        width = 5.5,
+    )
+""";
+
+# Plot the true IRF
+R"""
+fig <-
+    $df_true_irf |>
+    dplyr::inner_join(
+        varnames_df,
+        by = dplyr::join_by(cause_id == id)
+    ) |>
+    dplyr::rename(cause_var = varname) |>
+    dplyr::inner_join(
+        varnames_df,
+        by = dplyr::join_by(effect_id == id)
+    ) |>
+    dplyr::rename(effect_var = varname) |>
+    dplyr::mutate(
+        effect_var =
+            factor(
+                effect_var,
+                levels = effect_var |> levels() |> rev()
+            )
+    ) |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            x = horizon,
+            y = true_irf
+        )
+    ) +
+    ggplot2::geom_line() +
+    ggplot2::geom_hline(
+        yintercept = 0,
+        linetype = "dashed",
+        alpha = 0.3
+    ) +
+    ggplot2::facet_grid(
+        cols = ggplot2::vars(cause_var),
+        rows = ggplot2::vars(effect_var)
+    ) +
+    ggplot2::theme_classic() +
+    ggplot2::labs(
+        x = "cause",
+        y = "effect",
+        fill = "IRF"
+    )
+fig |>
+    ggplot2::ggsave(
+        filename = "extra/simulated_example/fig/fig-irf-true.png",
+        dpi = 1200,
+        height = 3.5,
+        width = 5.5,
+    )
+""";
