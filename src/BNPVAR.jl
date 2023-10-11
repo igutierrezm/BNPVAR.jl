@@ -10,6 +10,7 @@ using OffsetArrays: OffsetArray
 # using
 
 const AG = AbstractGSBPs
+const DT = Distributions
 const LA = LinearAlgebra
 
 # export Model, get_ij_pair

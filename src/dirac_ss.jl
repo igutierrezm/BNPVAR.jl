@@ -304,3 +304,45 @@ function get_irf(m::DiracSSModel, hmax = 10)
     out = [Ds[h][1:N, 1:N] for h in 1:hmax]
     return out
 end
+
+function get_posterior_predictive_moments(m::DiracSSModel, dpath::Vector{Int})
+    (; p, N, Σ, yvec) = m
+    hmax = length(dpath)
+    Ds = get_all_Ds(m, dpath)
+    zend = vcat([yvec[end + 1 - t] for t in 1:p]...)
+    Phi = [Ds[τ][1:N, 1:N] for τ in 1:hmax]
+    mhmax = Ds[hmax][1:N, :] * zend + get_c(m, dpath[hmax])
+    Vhmax = deepcopy(Σ[dpath[hmax]])
+    for τ = 1:(hmax - 1)
+        mhmax .+= Phi[τ] * get_c(m, dpath[hmax - τ])
+        Vhmax .= Vhmax .+ (Phi[τ] * Σ[dpath[hmax - τ]] * Phi[τ]')
+    end
+    return mhmax, LA.Symmetric(Vhmax)
+end
+
+function get_posterior_predictive_pdf_1d(
+        y::Float64,
+        k::Int,
+        m::DiracSSModel,
+        dpath::Vector{Int}
+    )
+    mh, Vh = get_posterior_predictive_moments(m, dpath)
+    return DT.pdf(DT.Normal(mh[k], Vh[k, k]), y)
+end
+
+function get_posterior_predictive_pdf_1d(
+    y::Float64,
+    k::Int,
+    m::DiracSSModel,
+    hmax::Int
+)
+    (; β) = m
+    dpath = zeros(Int, hmax)
+    nclus = length(β)
+    for h in 1:hmax
+        rnew = AG.rand_rnew(m)
+        dnew = AG.rand_dnew(m, rnew)
+        dpath[h] = min(dnew, nclus)
+    end
+    return get_posterior_predictive_pdf_1d(y, k, m, dpath)
+end

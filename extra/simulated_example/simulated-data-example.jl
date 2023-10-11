@@ -2,6 +2,7 @@ begin
     using AbstractGSBPs
     using BNPVAR
     using DataFrames
+    using Distributions
     using RCall
     using Random
     using LinearAlgebra
@@ -22,7 +23,7 @@ function generate_sample()
     c = 0.5 * ones(N)
     Σ = 0.5 * Matrix{Float64}(I(N))
     A1 = 0.5 * Matrix{Float64}(I(N))
-    A2 = deepcopy(A1)
+    A2 = -deepcopy(A1)
     A1[1, 2] = -0.5
     A2[1, 2] = +0.5
     A1[3, 1] = -0.5
@@ -42,7 +43,7 @@ function generate_sample()
     return y, X, Z
 end
 
-# Simulate the IRF associated to the simulated model
+# Compute the IRF associated to the simulated model
 function generate_irf(hmax::Int)
     A1 = 0.5 * Matrix{Float64}(I(3))
     A2 = deepcopy(A1)
@@ -304,6 +305,8 @@ fig <-
     )
 """
 
+#
+
 # Try our IRF function
 begin
     Random.seed!(1)
@@ -476,6 +479,172 @@ fig <-
 fig |>
     ggplot2::ggsave(
         filename = "extra/simulated_example/fig/fig-simulated-irf.png",
+        dpi = 1200,
+        height = 3.5,
+        width = 5.5,
+    )
+"""
+
+#==== Forecasting =============================================================#
+
+# Generate 1 sample
+begin
+    Random.seed!(1)
+    sample = generate_sample()
+end;
+
+# Approximate the true predictive density
+
+# Try our (1d) predictive pdf function
+begin
+    Random.seed!(1)
+    warmup = 10000
+    neff = 2000
+    thin = 5
+    p = 1
+    hmax = 16
+    iter = warmup + neff * thin
+    y, X, Z = sample
+    T, N = size(Z)
+    ygrid = collect(-4:0.1:4)
+    Ngridpoints = length(ygrid)
+    chain_pdf = [[zeros(N, Ngridpoints) for _ in 1:hmax] for _ in 1:neff]
+    model = BNPVAR.DiracSSModel(; p, N, T, Z)
+    for t in 1:iter
+        AbstractGSBPs.step!(model)
+        if (t > warmup) && ((t - warmup) % thin == 0)
+            teff = (t - warmup) ÷ thin
+            @show teff
+            for k in 1:N, igrid in 1:Ngridpoints, h in 1:hmax
+                chain_pdf[teff][h][k, igrid] =
+                    BNPVAR.get_posterior_predictive_pdf_1d(
+                        ygrid[igrid], k, model, h
+                    )
+            end
+        end
+    end
+end
+
+# Convert the results into a df
+begin
+   df = DataFrame(
+        iter = Int[],
+        var_id = Int[],
+        horizon = Int[],
+        y = Float64[],
+        f = Float64[]
+   )
+   for iter in 1:neff, var_id in 1:N, horizon in 1:hmax, igrid in 1:Ngridpoints
+        f0 = chain_pdf[iter][horizon][var_id, igrid]
+        push!(df, (iter, var_id, horizon, ygrid[igrid], f0))
+   end
+end
+
+# Summarize the results
+R"""
+fig <-
+    $df |>
+    dplyr::summarize(
+        f = mean(f),
+        .by = c(y, var_id, horizon)
+    ) |>
+    dplyr::filter(horizon %in% seq(1, 16, 5)) |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            x = y,
+            y = f
+        )
+    ) +
+    ggplot2::geom_line() +
+    ggplot2::facet_grid(
+        cols = ggplot2::vars(horizon),
+        rows = ggplot2::vars(var_id)
+    )
+fig |>
+    ggplot2::ggsave(
+        filename = "extra/simulated_example/fig/fig-simulated-pred_pdf_1d.png",
+        dpi = 1200,
+        height = 3.5,
+        width = 5.5,
+    )
+"""
+
+# Compute the true moments of the predictive distribution
+function generate_true_predictive_moments(
+        m::DiracSSModel,
+        dpath::Vector{Int},
+    )
+    yend = m.yvec[end]
+    dend = AbstractGSBPs.get_cluster_labels(m)[end]
+    h = length(dpath)
+    c = 0.5 * ones(N)
+    Σ = 0.5 * Matrix{Float64}(I(N))
+    A = [
+        0.5 * Matrix{Float64}(I(N)),
+        -0.5 * Matrix{Float64}(I(N))
+    ]
+    A[1][1, 2] = -0.5
+    A[2][1, 2] = +0.5
+    A[1][3, 1] = -0.5
+    A[2][3, 1] = +0.5
+    Vh = [deepcopy(Σ)]
+    mh = [c + A[dend] * yend]
+    Phi = [A[dpath[1]]]
+    for τ in 2:h
+        push!(mh, mh[end] + Phi[end] * c)
+        push!(Vh, Vh[end] + Phi[end] * Σ * Phi[end]')
+        push!(Phi, A[dpath[τ]] * Phi[end])
+    end
+    return mh, Vh
+end
+
+# Compute the true (1d) predictive distribution associated to the model
+begin
+    hmax = 16
+    ygrid = collect(-4:0.1:4)
+    Ngridpoints = length(ygrid)
+    df = DataFrame(
+        iter = Int[],
+        var_id = Int[],
+        horizon = Int[],
+        y = Float64[],
+        f = Float64[]
+    )
+    for iter in 1:1000
+        dpath = 1 .+ (rand(hmax) .<= 0.3)
+        mh, Vh = generate_true_predictive_moments(model, dpath)
+        for k in 1:N, h in 1:hmax, igrid in 1:Ngridpoints
+            y0 = ygrid[igrid]
+            d0 = Distributions.Normal(mh[h][k], Vh[h][k, k])
+            f0 = Distributions.pdf(d0, y0)
+            push!(df, (iter, k, h, y0, f0))
+        end
+    end
+end
+
+# Summarize the results
+R"""
+fig <-
+    $df |>
+    dplyr::summarize(
+        f = mean(f),
+        .by = c(y, var_id, horizon)
+    ) |>
+    dplyr::filter(horizon %in% seq(1, 16, 5)) |>
+    ggplot2::ggplot(
+        ggplot2::aes(
+            x = y,
+            y = f
+        )
+    ) +
+    ggplot2::geom_line() +
+    ggplot2::facet_grid(
+        cols = ggplot2::vars(horizon),
+        rows = ggplot2::vars(var_id)
+    )
+fig |>
+    ggplot2::ggsave(
+        filename = "extra/simulated_example/fig/fig-simulated-true_pred_pdf_1d.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,
