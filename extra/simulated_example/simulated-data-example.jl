@@ -17,24 +17,22 @@ end
 # """
 
 # Simulate a sample, as described in the main article
-function generate_sample()
-    T, N, p = 200, 3, 1
+function generate_sample(; T = 200)
+    N, p = 3, 1
     Z = randn(T, N)
     c = 0.5 * ones(N)
     Σ = 0.5 * Matrix{Float64}(I(N))
-    A1 = 0.5 * Matrix{Float64}(I(N))
-    A2 = -deepcopy(A1)
-    A1[1, 2] = -0.5
-    A2[1, 2] = +0.5
-    A1[3, 1] = -0.5
-    A2[3, 1] = +0.5
-    d = rand(T) .<= 0.3
+    A = [
+        +0.7 * Matrix{Float64}(I(N)),
+        -0.7 * Matrix{Float64}(I(N))
+    ]
+    A[1][1, 2] = -0.5
+    A[2][1, 2] = +0.5
+    A[1][3, 1] = -0.5
+    A[2][3, 1] = +0.5
+    d = 1 .+ (rand(T) .> 0.3)
     for t in 3:T
-        if d[t]
-            Z[t, :] .= c + A1 * Z[t - 1, :] + cholesky(Σ).L * randn(N)
-        else
-            Z[t, :] .= c + A2 * Z[t - 1, :] + cholesky(Σ).L * randn(N)
-        end
+        Z[t, :] .= c + A[d[t]] * Z[t - 1, :] + cholesky(Σ).L * randn(N)
     end
     yvec = [Z[t, :] for t in 2:T]
     Xvec = [kron(I(N), [1 vec(Z[(t-p):(t-1), :]')']) for t in (1 + p):T]
@@ -45,21 +43,19 @@ end
 
 # Compute the IRF associated to the simulated model
 function generate_irf(hmax::Int)
-    A1 = 0.5 * Matrix{Float64}(I(3))
-    A2 = deepcopy(A1)
-    A1[1, 2] = -0.5
-    A2[1, 2] = +0.5
-    A1[3, 1] = -0.5
-    A2[3, 1] = +0.5
-    d = rand(hmax) .<= 0.3
+    A = [
+        +0.7 * Matrix{Float64}(I(N)),
+        -0.7 * Matrix{Float64}(I(N))
+    ]
+    A[1][1, 2] = -0.5
+    A[2][1, 2] = +0.5
+    A[1][3, 1] = -0.5
+    A[2][3, 1] = +0.5
+    d = 1 .+ (rand(hmax) .> 0.3)
     irf = [I(3) |> Matrix{Float64} for h in 1:hmax]
-    irf[1] = d[1] == 1 ? A1 : A2
+    irf[1] = A[d[1]]
     for h in 2:hmax
-        if d[h] == 1
-            irf[h] .= A1 * irf[h - 1]
-        else
-            irf[h] .= A2 * irf[h - 1]
-        end
+            irf[h] .= A[d[h]] * irf[h - 1]
     end
     return irf
 end
@@ -136,7 +132,7 @@ fig <-
         values = c("white", "black")
     ) +
     ggplot2::theme_classic() +
-    ggplot2::guides(color = FALSE) +
+    ggplot2::guides(color = "none") +
     ggplot2::theme(
         legend.position = 'top',
         legend.justification = 'left',
@@ -158,31 +154,33 @@ fig <-
 
 # Run our test
 begin
-    Random.seed!(1)
     nsims = 100
     T, N, p = 200, 3, 2
     warmup = 10000
-    neff = 500
-    thin = 5
+    neff = 2000
+    thin = 1
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     scores = [-ones(Int, N * (N - 1)) for _ in 1:nsims]
-    for p in 1:2, sim in 1:nsims
-        println("sim: $sim")
-        y, X, Z = samples[sim]
-        model = BNPVAR.DiracSSModel(; p, N, T, Z)
-        for t in 1:iter
-            AbstractGSBPs.step!(model)
-            if (t > warmup) && ((t - warmup) % thin == 0)
-                chain_g[(t - warmup) ÷ thin] .= model.g
+    for p in 1:1
+        Random.seed!(1)
+        for sim in 85:nsims
+            println("sim: $sim")
+            y, X, Z = samples[sim]
+            model = BNPVAR.DiracSSModel(; p, N, T, Z)
+            for t in 1:iter
+                AbstractGSBPs.step!(model)
+                if (t > warmup) && ((t - warmup) % thin == 0)
+                    chain_g[(t - warmup) ÷ thin] .= model.g
+                end
             end
+            # Save results
+            filename = "extra/simulated_example/gamma/gamma_$(p)_$(sim).csv"
+            df = DataFrame(hcat(chain_g...)' |> collect, :auto)
+            R"""
+            readr::write_csv($df, $filename)
+            """
         end
-        # Save results
-        filename = "extra/simulated_example/gamma/gamma_$(p)_$(sim).csv"
-        df = DataFrame(hcat(chain_g...)' |> collect, :auto)
-        R"""
-        readr::write_csv($df, $filename)
-        """
     end
 end
 
@@ -212,6 +210,7 @@ end
 
 # Compute the cause-effect relationship associated to each gamma
 begin
+    T, N, p = 200, 3, 2
     df_gamma_dict = DataFrame(cause = Int[], effect = Int[], idx = Int[])
     for idx in 1:6
         cause, effect = get_ij_pair(idx, N)
@@ -280,12 +279,12 @@ fig <-
     ) +
     ggplot2::scale_fill_distiller(
         type = "seq",
-        direction = -1,
+        direction = 1,
         palette = "Greys"
     ) +
     ggplot2::scale_colour_manual(values = c("white", "black")) +
     ggplot2::theme_classic() +
-    ggplot2::guides(color = FALSE) +
+    ggplot2::guides(color = "none") +
     ggplot2::theme(
         legend.position = 'top',
         legend.justification = 'left',
@@ -296,7 +295,7 @@ fig <-
         y = "effect",
         fill = "frequency\n"
     )
-    fig |>
+fig |>
     ggplot2::ggsave(
         filename = "extra/simulated_example/fig/fig-simulated-bayes-1vs1.png",
         height = 3.5,
@@ -305,14 +304,14 @@ fig <-
     )
 """
 
-#
+# IRF ==========================================================================
 
 # Try our IRF function
 begin
     Random.seed!(1)
-    warmup = 10000
+    warmup = 20000
     neff = 2000
-    thin = 5
+    thin = 1
     p = 2
     hmax = 16
     iter = warmup + neff * thin
@@ -487,26 +486,24 @@ fig |>
 
 #==== Forecasting =============================================================#
 
-# Generate 1 sample
+# Select 1 sample
 begin
     Random.seed!(1)
-    sample = generate_sample()
+    sample = generate_sample(T = 200)
 end;
-
-# Approximate the true predictive density
 
 # Try our (1d) predictive pdf function
 begin
     Random.seed!(1)
-    warmup = 10000
+    warmup = 20000
     neff = 2000
-    thin = 5
+    thin = 1
     p = 1
-    hmax = 16
+    hmax = 3
     iter = warmup + neff * thin
     y, X, Z = sample
     T, N = size(Z)
-    ygrid = collect(-4:0.1:4)
+    ygrid = collect(-12:0.1:12)
     Ngridpoints = length(ygrid)
     chain_pdf = [[zeros(N, Ngridpoints) for _ in 1:hmax] for _ in 1:neff]
     model = BNPVAR.DiracSSModel(; p, N, T, Z)
@@ -542,32 +539,15 @@ end
 
 # Summarize the results
 R"""
-fig <-
+df_pred1 <-
     $df |>
     dplyr::summarize(
         f = mean(f),
         .by = c(y, var_id, horizon)
     ) |>
-    dplyr::filter(horizon %in% seq(1, 16, 5)) |>
-    ggplot2::ggplot(
-        ggplot2::aes(
-            x = y,
-            y = f
-        )
-    ) +
-    ggplot2::geom_line() +
-    ggplot2::facet_grid(
-        cols = ggplot2::vars(horizon),
-        rows = ggplot2::vars(var_id)
-    )
-fig |>
-    ggplot2::ggsave(
-        filename = "extra/simulated_example/fig/fig-simulated-pred_pdf_1d.png",
-        dpi = 1200,
-        height = 3.5,
-        width = 5.5,
-    )
-"""
+    dplyr::filter(horizon %in% seq(1, 3, 1)) |>
+    dplyr::mutate(density = "fitted")
+""";
 
 # Compute the true moments of the predictive distribution
 function generate_true_predictive_moments(
@@ -575,33 +555,35 @@ function generate_true_predictive_moments(
         dpath::Vector{Int},
     )
     yend = m.yvec[end]
-    dend = AbstractGSBPs.get_cluster_labels(m)[end]
     h = length(dpath)
     c = 0.5 * ones(N)
     Σ = 0.5 * Matrix{Float64}(I(N))
     A = [
-        0.5 * Matrix{Float64}(I(N)),
-        -0.5 * Matrix{Float64}(I(N))
+        +0.7 * Matrix{Float64}(I(N)),
+        -0.7 * Matrix{Float64}(I(N))
     ]
     A[1][1, 2] = -0.5
     A[2][1, 2] = +0.5
     A[1][3, 1] = -0.5
     A[2][3, 1] = +0.5
     Vh = [deepcopy(Σ)]
-    mh = [c + A[dend] * yend]
+    mh = [c]
     Phi = [A[dpath[1]]]
-    for τ in 2:h
+    for τ in 1:(h - 1)
         push!(mh, mh[end] + Phi[end] * c)
         push!(Vh, Vh[end] + Phi[end] * Σ * Phi[end]')
-        push!(Phi, A[dpath[τ]] * Phi[end])
+        push!(Phi, A[dpath[τ + 1]] * Phi[end])
+    end
+    for τ in 1:h
+        mh[τ] .+= Phi[τ] * yend
     end
     return mh, Vh
-end
+end;
 
 # Compute the true (1d) predictive distribution associated to the model
 begin
-    hmax = 16
-    ygrid = collect(-4:0.1:4)
+    hmax = 3
+    ygrid = collect(-12:0.1:12)
     Ngridpoints = length(ygrid)
     df = DataFrame(
         iter = Int[],
@@ -611,7 +593,7 @@ begin
         f = Float64[]
     )
     for iter in 1:1000
-        dpath = 1 .+ (rand(hmax) .<= 0.3)
+        dpath = 1 .+ (rand(hmax) .> 0.3)
         mh, Vh = generate_true_predictive_moments(model, dpath)
         for k in 1:N, h in 1:hmax, igrid in 1:Ngridpoints
             y0 = ygrid[igrid]
@@ -620,31 +602,51 @@ begin
             push!(df, (iter, k, h, y0, f0))
         end
     end
-end
+end;
 
 # Summarize the results
 R"""
-fig <-
+df_pred2 <-
     $df |>
     dplyr::summarize(
         f = mean(f),
         .by = c(y, var_id, horizon)
     ) |>
-    dplyr::filter(horizon %in% seq(1, 16, 5)) |>
+    dplyr::filter(horizon %in% seq(1, 3, 1)) |>
+    dplyr::mutate(density = "true")
+""";
+
+# Plot the fitted and true pred pdfs
+R"""
+fig <-
+    df_pred1 |>
+    dplyr::bind_rows(df_pred2) |>
+    dplyr::mutate(
+        variable = paste0("y", var_id)
+    ) |>
     ggplot2::ggplot(
         ggplot2::aes(
             x = y,
-            y = f
+            y = f,
+            linetype = density
         )
     ) +
     ggplot2::geom_line() +
     ggplot2::facet_grid(
         cols = ggplot2::vars(horizon),
-        rows = ggplot2::vars(var_id)
+        rows = ggplot2::vars(variable),
+        labeller = ggplot2::labeller(horizon = ggplot2::label_both)
+    ) +
+    ggplot2::theme_classic() +
+    ggplot2::theme(
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        axis.text.y = ggplot2::element_text(angle = 90, hjust = 0.5),
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/simulated_example/fig/fig-simulated-true_pred_pdf_1d.png",
+        filename = "extra/simulated_example/fig/fig-simulated-pred-pdf-1d.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,
