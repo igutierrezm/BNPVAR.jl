@@ -135,7 +135,7 @@ fig <-
     ) +
     ggplot2::geom_tile() +
     ggplot2::geom_text(
-        ggplot2::aes(color = ifelse(prob > 0.9, "1", "2"))
+        ggplot2::aes(color = ifelse(prob > 0.8, "1", "2"))
     ) +
     ggplot2::facet_wrap(
         ggplot2::vars(`# lags`),

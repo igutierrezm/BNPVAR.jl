@@ -465,6 +465,12 @@ fig <-
         rows = ggplot2::vars(effect_var)
     ) +
     ggplot2::theme_classic() +
+    ggplot2::theme(
+        legend.position = 'top',
+        legend.justification = 'left',
+        legend.direction = 'horizontal',
+        axis.text.y = ggplot2::element_text(angle = 90, hjust = 0.5),
+    ) +
     ggplot2::labs(
         x = "cause",
         y = "effect",
