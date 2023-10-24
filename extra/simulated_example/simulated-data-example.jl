@@ -116,7 +116,7 @@ fig <-
     ) +
     ggplot2::geom_tile(stat = "identity") +
     ggplot2::geom_text(
-        ggplot2::aes(color = ifelse(freq > 50, "1", "2"))
+        ggplot2::aes(color = ifelse(freq > 30, "1", "2"))
     ) +
     ggplot2::facet_wrap(
         ggplot2::vars(`# lags`),
@@ -464,6 +464,7 @@ fig <-
         cols = ggplot2::vars(cause_var),
         rows = ggplot2::vars(effect_var)
     ) +
+    ggplot2::scale_y_continuous(breaks = c(-1, 0, +1)) +
     ggplot2::theme_classic() +
     ggplot2::theme(
         legend.position = 'top',
@@ -643,6 +644,7 @@ fig <-
         rows = ggplot2::vars(variable),
         labeller = ggplot2::labeller(horizon = ggplot2::label_both)
     ) +
+    ggplot2::scale_y_continuous(breaks = c(0, 0.3, 0.6)) +
     ggplot2::theme_classic() +
     ggplot2::theme(
         legend.position = 'top',
