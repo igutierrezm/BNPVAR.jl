@@ -167,7 +167,7 @@ begin
         for sim in 85:nsims
             println("sim: $sim")
             y, X, Z = samples[sim]
-            model = BNPVAR.DiracSSModel(; p, N, T, Z)
+            model = BNPVAR.Model(; p, N, T, Z)
             for t in 1:iter
                 AbstractGSBPs.step!(model)
                 if (t > warmup) && ((t - warmup) % thin == 0)
@@ -319,7 +319,7 @@ begin
     T, N = size(Z)
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     chain_irf = [[zeros(N, N) for _ in 1:hmax] for _ in 1:neff]
-    model = BNPVAR.DiracSSModel(; p, N, T, Z)
+    model = BNPVAR.Model(; p, N, T, Z)
     for t in 1:iter
         @show t
         AbstractGSBPs.step!(model)
@@ -513,7 +513,7 @@ begin
     ygrid = collect(-12:0.1:12)
     Ngridpoints = length(ygrid)
     chain_pdf = [[zeros(N, Ngridpoints) for _ in 1:hmax] for _ in 1:neff]
-    model = BNPVAR.DiracSSModel(; p, N, T, Z)
+    model = BNPVAR.Model(; p, N, T, Z)
     for t in 1:iter
         AbstractGSBPs.step!(model)
         if (t > warmup) && ((t - warmup) % thin == 0)
@@ -558,7 +558,7 @@ df_pred1 <-
 
 # Compute the true moments of the predictive distribution
 function generate_true_predictive_moments(
-        m::DiracSSModel,
+        m::Model,
         dpath::Vector{Int},
     )
     yend = m.yvec[end]

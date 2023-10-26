@@ -29,7 +29,7 @@ end;
 # Check if step_atoms!() works
 begin
     maxiter = 10
-    model = BNPVAR.DiracSSModel(; p, N, T, Z);
+    model = BNPVAR.Model(; p, N, T, Z);
     βchain = [deepcopy(model.β[1]) for t in 1:(maxiter ÷ 2)]
     for iter in 1:maxiter
         println(iter)
@@ -40,7 +40,7 @@ begin
     end
 end
 
-# model = BNPVAR.DiracSSModel(; p, N, T, Z);
+# model = BNPVAR.Model(; p, N, T, Z);
 # skl = AbstractGSBPs.get_skeleton(model)
 # AbstractGSBPs.loglikcontrib(model, yvec[1], Xvec[1], 1)
 # AbstractGSBPs.step_atoms!(model, 1)

@@ -1,4 +1,4 @@
-struct DiracSSModel <: AbstractGSBPs.AbstractGSBP
+struct Model <: AbstractGSBPs.AbstractGSBP
     # Data
     p::Int
     N::Int
@@ -20,7 +20,7 @@ struct DiracSSModel <: AbstractGSBPs.AbstractGSBP
     gaugmented::Vector{Bool}
     # Skeleton
     skl::AbstractGSBPs.GSBPSkeleton{Vector{Float64}, Matrix{Float64}}
-    function DiracSSModel(; p, N, T, Z,
+    function Model(; p, N, T, Z,
         S0::Matrix{Float64} = 1.0 * I(N) |> collect,
         v0::Int = N + 1,
         q0::Float64 = 1.0,
@@ -68,16 +68,16 @@ function init_gdict(N, p)
     return out
 end
 
-function AbstractGSBPs.get_skeleton(model::DiracSSModel)
+function AbstractGSBPs.get_skeleton(model::Model)
     model.skl
 end
 
-function AbstractGSBPs.loglikcontrib(model::DiracSSModel, y0, x0, d0::Int)
+function AbstractGSBPs.loglikcontrib(model::Model, y0, x0, d0::Int)
     (; β, Σ) = model
     return Distributions.logpdf(Distributions.MvNormal(x0 * β[d0], Σ[d0]), y0)
 end
 
-function AbstractGSBPs.step_atoms!(model::DiracSSModel, K::Int)
+function AbstractGSBPs.step_atoms!(model::Model, K::Int)
     (; y, X, yvec, Xvec, N, T, p, S0, v0, q0, β, Σ, gaugmented) = model
     d = AbstractGSBPs.get_cluster_labels(model)
     k = N * (1 + N * p)
@@ -220,7 +220,7 @@ function get_Λ1γU_and_m1γ!(model::SubModel, y, X, Σ, γ)
 end
 
 # Extract Ak (in cluster cl) from the model current state
-function get_Ak(m::DiracSSModel, cl::Int, k::Int)
+function get_Ak(m::Model, cl::Int, k::Int)
     (; N, β) = m
     B = reshape(β[cl], :, N)
     Ak = B[2 + N * (k - 1):(1 + N * k), :]' |> collect
@@ -236,7 +236,7 @@ function get_Ak(m::SubModel, β::Vector{Float64}, k::Int)
 end
 
 # Extract c (in cluster cl) from the model current state
-function get_c(m::DiracSSModel, cl::Int)
+function get_c(m::Model, cl::Int)
     (; N, β) = m
     B = reshape(β[cl], :, N)
     c = B[1, :]
@@ -244,7 +244,7 @@ function get_c(m::DiracSSModel, cl::Int)
 end
 
 # Generate the "big C" matrix (for cluster cl) using the current state
-function get_C(m::DiracSSModel, cl::Int)
+function get_C(m::Model, cl::Int)
     (; N, p) = m
     Aks = [get_Ak(m, cl, k) for k in 1:p]
     C = [hcat(Aks...); I(N * (p - 1)) zeros(N * (p - 1), N)]
@@ -279,7 +279,7 @@ function ph0(m, ζ)
 end
 
 # Return [D[τ - 1] for τ in 1:length(dpath)]
-function get_all_Ds(m::DiracSSModel, dpath::Vector{Int})
+function get_all_Ds(m::Model, dpath::Vector{Int})
     (; β) = m
     nclus = length(β)
     hmax = length(dpath)
@@ -291,7 +291,7 @@ function get_all_Ds(m::DiracSSModel, dpath::Vector{Int})
     return D
 end
 
-function get_irf(m::DiracSSModel, hmax = 10)
+function get_irf(m::Model, hmax = 10)
     (; N, β) = m
     dpath = zeros(Int, hmax)
     nclus = length(β)
@@ -305,7 +305,7 @@ function get_irf(m::DiracSSModel, hmax = 10)
     return out
 end
 
-function get_posterior_predictive_moments(m::DiracSSModel, dpath::Vector{Int})
+function get_posterior_predictive_moments(m::Model, dpath::Vector{Int})
     (; p, N, Σ, yvec) = m
     hmax = length(dpath)
     Ds = get_all_Ds(m, dpath)
@@ -323,7 +323,7 @@ end
 function get_posterior_predictive_pdf_1d(
         y::Float64,
         k::Int,
-        m::DiracSSModel,
+        m::Model,
         dpath::Vector{Int}
     )
     mh, Vh = get_posterior_predictive_moments(m, dpath)
@@ -333,7 +333,7 @@ end
 function get_posterior_predictive_pdf_1d(
     y::Float64,
     k::Int,
-    m::DiracSSModel,
+    m::Model,
     hmax::Int
 )
     (; β) = m

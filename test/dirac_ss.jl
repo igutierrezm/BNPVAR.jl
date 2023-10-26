@@ -17,7 +17,7 @@ begin
     X = vcat(Xvec...)
 end
 
-model = DiracSSModel(; p, N, T, Z)
+model = Model(; p, N, T, Z)
 AbstractGSBPs.get_skeleton(model)
 AbstractGSBPs.loglikcontrib(model, yvec[1], Xvec[1], 1)
 AbstractGSBPs.step_atoms!(model, 5)

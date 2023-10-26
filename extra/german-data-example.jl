@@ -14,7 +14,7 @@
 #     Z = Matrix{Float64}(data)
 #     T, N = size(Z)
 #     p = 2
-#     model = BNPVAR.DiracSSModel(; p, N, T, Z)
+#     model = BNPVAR.Model(; p, N, T, Z)
 # end;
 
 # # Plot the data

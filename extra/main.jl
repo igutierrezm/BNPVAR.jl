@@ -82,7 +82,7 @@
 #     for sim in 1:nsims
 #         println("idx: $idx, sim: $sim")
 #         y, X, Z = samples[idx][sim]
-#         model = BNPVAR.DiracSSModel(; p, N, T, Z)
+#         model = BNPVAR.Model(; p, N, T, Z)
 #         for t in 1:iter
 #             AbstractGSBPs.step!(model)
 #             if (t > warmup) && ((t - warmup) % thin == 0)

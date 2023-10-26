@@ -59,7 +59,7 @@ begin
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     for p in [2, 4]
-        model = BNPVAR.DiracSSModel(; p, N, T, Z)
+        model = BNPVAR.Model(; p, N, T, Z)
         for t in 1:iter
             AbstractGSBPs.step!(model)
             if (t > warmup) && ((t - warmup) % thin == 0)
@@ -341,7 +341,7 @@ begin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     chain_irf = [[zeros(N, N) for _ in 1:hmax] for _ in 1:neff]
     for p in [2, 4]
-        model = BNPVAR.DiracSSModel(; p, N, T, Z)
+        model = BNPVAR.Model(; p, N, T, Z)
         for t in 1:iter
             AbstractGSBPs.step!(model)
             if (t > warmup) && ((t - warmup) % thin == 0)

@@ -14,10 +14,10 @@ const DT = Distributions
 const LA = LinearAlgebra
 
 # export Model, get_ij_pair
-export DiracSSModel, get_ij_pair
+export Model, get_ij_pair
 
 # include("sandbox.jl")
-include("dirac_ss.jl")
+include("model.jl")
 # include("dirac_ss2.jl")
 
 end

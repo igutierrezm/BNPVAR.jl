@@ -48,7 +48,7 @@ begin
     Z = Matrix{Float64}(data)
     T, N = size(Z)
     p = 1
-    model = BNPVAR.DiracSSModel(; p, N, T, Z)
+    model = BNPVAR.Model(; p, N, T, Z)
 end;
 
 # Run our test
