@@ -1,12 +1,12 @@
 function fit(
     Y::Matrix{Float64};
     p::Int = 1,
-    z0::Float64,
-    q0::Float64,
-    v0::Int,
-    S0::Matrix{Float64},
-    iter::Int = 4000,
+    z0::Float64 = 1.0,
+    q0::Float64 = 1.0,
+    v0::Int = size(Y, 2) + |,
+    S0::Matrix{Float64} = LA.I(size(Y, 2)),
     warmup::Int = 2000,
+    iter::Int = 4000,
     thin::Int = 1,
 )
     # Preallocate the chain results
