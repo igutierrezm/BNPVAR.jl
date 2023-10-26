@@ -39,7 +39,7 @@ function fit(
         map(1:length(chain_irf)) do iter
             vec_irf = vcat(vec.(chain_irf[iter])...)
             ncells = length(vec_irf)
-            df = DataFrame(irf = vec_irf)
+            df = DF.DataFrame(irf = vec_irf)
             df[!, :horizon] = 1 .+ (0:ncells - 1) .÷ N^2
             df[!, :effect_id] = 1 .+ (0:ncells - 1) .% N
             df[!, :cause_id] = 1 .+ ((0:ncells - 1) .÷ N) .% N
