@@ -23,7 +23,7 @@ function fit(
     for t in 1:iter
         AbstractGSBPs.step!(model)
         if (t > warmup) && ((t - warmup) % thin == 0)
-            chain_g[(t - warmup) ÷ thin] .= model.g
+            chain_gamma[(t - warmup) ÷ thin] .= model.g
             irf = get_irf(model, hmax)
             for h in 1:hmax
                 chain_irf[(t - warmup) ÷ thin][h] .= irf[h]
