@@ -8,7 +8,5 @@ using Random
 const BV = BNPVAR
 
 @testset "BNPVAR.jl" begin
-    # include("sandbox.jl")
-    # include("dirac_ss.jl")
-    include("dirac_ss2.jl")
+    # include("model.jl")
 end
