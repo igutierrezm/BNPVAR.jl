@@ -49,5 +49,5 @@ function fit(
         (x) -> reduce(vcat, x)
 
     # Return the chains as DataFrames
-    return df_gamma
+    return Dict("gamma" => df_gamma, "irf" => df_chain_irf)
 end
