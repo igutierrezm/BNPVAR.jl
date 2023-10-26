@@ -49,5 +49,5 @@ function fit(
         (x) -> reduce(vcat, x)
 
     # Return the chains as DataFrames
-    return df_g
+    return df_gamma
 end
