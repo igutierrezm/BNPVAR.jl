@@ -1,7 +1,7 @@
 function fit(
     Y::Matrix{Float64};
     p::Int = 1,
-    ζ0::Float64,
+    z0::Float64,
     q0::Float64,
     v0::Int,
     S0::Matrix{Float64},
@@ -17,7 +17,7 @@ function fit(
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
 
     # Run the MCMC
-    model = Model(; p, N, T, Z)
+    model = Model(; p, N, T, Z, q0, v0, S0, ζ0 = z0)
     for t in 1:iter
         AbstractGSBPs.step!(model)
         if (t > warmup) && ((t - warmup) % thin == 0)
