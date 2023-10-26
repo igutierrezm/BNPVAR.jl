@@ -3,36 +3,48 @@ function fit(
     p::Int = 1,
     z0::Float64 = 1.0,
     q0::Float64 = 1.0,
-    v0::Int = size(Y, 2) + |,
-    S0::Matrix{Float64} = LA.I(size(Y, 2)),
+    v0::Int = size(Y, 2) + 1,
+    S0::Matrix{Float64} = LA.I(size(Y, 2)) |> Matrix{Float64},
     warmup::Int = 2000,
     iter::Int = 4000,
     thin::Int = 1,
     hmax::Int = 1,
+    grid_npoints::Int = 50,
+    grid_lbs::Vector{Float64} = eachcol(Y) .|> minimum,
+    grid_ubs::Vector{Float64} = eachcol(Y) .|> maximum,
 )
     # Preallocate the chain results
     Z = Y
     T = size(Y, 1)
     N = size(Y, 2)
     neff = (iter - warmup) ÷ thin
-    chain_gamma = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
+    ygrids = range.(grid_lbs, grid_ubs, grid_npoints) .|> collect
+    chain_pdf = [[zeros(N, grid_npoints) for _ in 1:hmax] for _ in 1:neff]
     chain_irf = [[zeros(N, N) for _ in 1:hmax] for _ in 1:neff]
+    chain_gamma = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
 
     # Run the MCMC
     model = Model(; p, N, T, Z, q0, v0, S0, ζ0 = z0)
     for t in 1:iter
         AbstractGSBPs.step!(model)
+        teff = (t - warmup) ÷ thin
         if (t > warmup) && ((t - warmup) % thin == 0)
-            chain_gamma[(t - warmup) ÷ thin] .= model.g
+            chain_gamma[teff] .= model.g
             irf = get_irf(model, hmax)
             for h in 1:hmax
-                chain_irf[(t - warmup) ÷ thin][h] .= irf[h]
+                chain_irf[teff][h] .= irf[h]
+            end
+            for k in 1:N, igrid in 1:grid_npoints, h in 1:hmax
+                chain_pdf[teff][h][k, igrid] =
+                    BNPVAR.get_posterior_predictive_pdf_1d(
+                        ygrids[k][igrid], k, model, h
+                    )
             end
         end
     end
 
     # Convert chain_gamma into a DataFrame
-    df_gamma = DF.DataFrame(hcat(chain_gamma...)' |> collect, :auto)
+    df_chain_gamma = DF.DataFrame(hcat(chain_gamma...)' |> collect, :auto)
 
     # Convert chain_irf into a DataFrame
     df_chain_irf =
@@ -48,6 +60,30 @@ function fit(
         end |>
         (x) -> reduce(vcat, x)
 
+    # Convert chain_pdf into a DataFrame
+    begin
+        df_chain_pdf = DF.DataFrame(
+            iter = Int[],
+            var_id = Int[],
+            horizon = Int[],
+            y = Float64[],
+            f = Float64[]
+        )
+        for iter in 1:neff, var_id in 1:N
+            for horizon in 1:hmax, igrid in 1:grid_npoints
+                f0 = chain_pdf[iter][horizon][var_id, igrid]
+                ith_row = (iter, var_id, horizon, ygrids[var_id][igrid], f0)
+                push!(df_chain_pdf, ith_row)
+            end
+        end
+    end
+
     # Return the chains as DataFrames
-    return Dict("gamma" => df_gamma, "irf" => df_chain_irf)
+    out =
+        Dict(
+            "gamma" => df_chain_gamma,
+            "irf" => df_chain_irf,
+            "pdf" => df_chain_pdf,
+        )
+    return out
 end
