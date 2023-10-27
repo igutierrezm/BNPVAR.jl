@@ -44,21 +44,28 @@ function fit(
     end
 
     # Get a DataFrame with the meaning of each gamma
-    df_gamma_dict = DF.DataFrame(cause = Int[], effect = Int[], idx = Int[])
-    for idx in 1:6
-        cause, effect = get_ij_pair(idx, N)
-        push!(df_gamma_dict, (cause, effect, idx))
+    df_gamma_dict = DF.DataFrame(
+        gamma_id = Int[],
+        cause_id = Int[],
+        effect_id = Int[]
+    )
+    for gamma_id in 1:6
+        cause_id, effect_id = get_ij_pair(gamma_id, N)
+        push!(df_gamma_dict, (gamma_id, cause_id, effect_id))
     end
 
     # Convert chain_gamma into a DataFrame
     df_chain_gamma = DF.DataFrame(hcat(chain_gamma...)' |> collect, :auto)
     df_chain_gamma[!, :iter] = collect(1:size(df_chain_gamma, 1))
     df_chain_gamma = DF.stack(df_chain_gamma, DF.Not(:iter))
-    df_chain_gamma[!, :var_id] =
+    df_chain_gamma[!, :gamma_id] =
         df_chain_gamma[!, :variable] .|>
         (x) -> strip(x, 'x') .|>
         (x) -> parse(Int, x)
-    DF.select!(df_chain_gamma, :iter, :var_id, :value)
+    df_chain_gamma =
+        df_chain_gamma |>
+        (x) -> DF.innerjoin(x, df_gamma_dict, on = :gamma_id) |>
+        (x) -> DF.select!(x, :iter, :gamma_id, :cause_id, :effect_id, :value)
 
     # Convert chain_irf into a DataFrame
     df_chain_irf =
