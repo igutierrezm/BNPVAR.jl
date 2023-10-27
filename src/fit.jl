@@ -28,7 +28,7 @@ function fit(
     chain_gamma = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
 
     # Run the MCMC
-    model = Model(; p, N, T, Z, q0, v0, S0, ζ0 = z0)
+    model = Model(; p, N, T, Z, q0, v0, S0, ζ0 = z0, a0p, b0p, a0s, b0s)
     for t in 1:iter
         AbstractGSBPs.step!(model)
         teff = (t - warmup) ÷ thin

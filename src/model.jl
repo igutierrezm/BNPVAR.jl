@@ -12,10 +12,6 @@ struct Model <: AbstractGSBPs.AbstractGSBP
     v0::Int
     q0::Float64
     ζ0::Float64
-    a0p::Float64
-    b0p::Float64
-    a0s::Float64
-    b0s::Float64
     # Parameters
     β::Vector{Vector{Float64}}
     Σ::Vector{Matrix{Float64}}
