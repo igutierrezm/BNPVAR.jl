@@ -43,8 +43,23 @@ function fit(
         end
     end
 
+    # # Get a DataFrame with the meaning of each gamma
+    # df_gamma_dict = DF.DataFrame(cause = Int[], effect = Int[], idx = Int[])
+    # for idx in 1:6
+    #     cause, effect = get_ij_pair(idx, N)
+    #     push!(df_gamma_dict, (cause, effect, idx))
+    # end
+
     # Convert chain_gamma into a DataFrame
-    df_chain_gamma = DF.DataFrame(hcat(chain_gamma...)' |> collect, :auto)
+    begin
+        df_chain_gamma = DF.DataFrame(hcat(chain_gamma...)' |> collect, :auto)
+        # df_chain_gamma[!, :iter] = collect(1:size(df_chain_gamma, 1))
+        # df_chain_gamma = DF.stack(df_chain_gamma, DF.Not(:iter))
+        # df_chain_gamma[!, :var_id] =
+        #     df_chain_gamma[!, :variable] .|>
+        #     (x) -> strip(x, 'x') .|>
+        #     Int
+    end
 
     # Convert chain_irf into a DataFrame
     df_chain_irf =
@@ -58,21 +73,22 @@ function fit(
             df[!, :iter] .= iter
             df
         end |>
-        (x) -> reduce(vcat, x)
+        (x) -> reduce(vcat, x) |>
+        (x) -> DF.select!(x, :iter, :horizon, :cause_id, :effect_id, :irf)
 
     # Convert chain_pdf into a DataFrame
     begin
         df_chain_pdf = DF.DataFrame(
             iter = Int[],
-            var_id = Int[],
             horizon = Int[],
+            var_id = Int[],
             y = Float64[],
-            f = Float64[]
+            fy = Float64[]
         )
         for iter in 1:neff, var_id in 1:N
             for horizon in 1:hmax, igrid in 1:grid_npoints
                 f0 = chain_pdf[iter][horizon][var_id, igrid]
-                ith_row = (iter, var_id, horizon, ygrids[var_id][igrid], f0)
+                ith_row = (iter, horizon, var_id, ygrids[var_id][igrid], f0)
                 push!(df_chain_pdf, ith_row)
             end
         end
