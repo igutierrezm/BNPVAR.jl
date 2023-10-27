@@ -1,6 +1,10 @@
 function fit(
     Y::Matrix{Float64};
     p::Int = 1,
+    a0p::Float64 = 1.0,
+    b0p::Float64 = 1.0,
+    a0s::Float64 = 8.0,
+    b0s::Float64 = 4.0,
     z0::Float64 = 1.0,
     q0::Float64 = 1.0,
     v0::Int = size(Y, 2) + 1,
