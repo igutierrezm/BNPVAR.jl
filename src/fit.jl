@@ -72,7 +72,7 @@ function fit(
         map(1:length(chain_irf)) do iter
             vec_irf = vcat(vec.(chain_irf[iter])...)
             ncells = length(vec_irf)
-            df = DF.DataFrame(irf = vec_irf)
+            df = DF.DataFrame(value = vec_irf)
             df[!, :horizon] = 1 .+ (0:ncells - 1) .÷ N^2
             df[!, :effect_id] = 1 .+ (0:ncells - 1) .% N
             df[!, :cause_id] = 1 .+ ((0:ncells - 1) .÷ N) .% N
@@ -80,7 +80,7 @@ function fit(
             df
         end |>
         (x) -> reduce(vcat, x) |>
-        (x) -> DF.select!(x, :iter, :horizon, :cause_id, :effect_id, :irf)
+        (x) -> DF.select!(x, :iter, :horizon, :cause_id, :effect_id, :value)
 
     # Convert chain_pdf into a DataFrame
     begin
@@ -89,7 +89,7 @@ function fit(
             horizon = Int[],
             var_id = Int[],
             y = Float64[],
-            fy = Float64[]
+            value = Float64[]
         )
         for iter in 1:neff, var_id in 1:N
             for horizon in 1:hmax, igrid in 1:grid_npoints
