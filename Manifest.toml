@@ -2,7 +2,7 @@
 
 julia_version = "1.9.1"
 manifest_format = "2.0"
-project_hash = "28a4f3c8abc7f00a8b8da7ff312fb0254ad13ef1"
+project_hash = "933cffee618b89a913a52967681aa1f85b5d9386"
 
 [[deps.AbstractGSBPs]]
 deps = ["Distributions", "HypergeometricFunctions", "SpecialFunctions"]
@@ -33,14 +33,6 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
-
-[[deps.BayesVAR]]
-deps = ["Distributions", "LinearAlgebra", "Random"]
-git-tree-sha1 = "4f19e7ef48c2b0a172fae40bee88c09c09b95cff"
-repo-rev = "main"
-repo-url = "git@github.com:igutierrezm/BayesVAR.jl.git"
-uuid = "1b8a9075-9d38-459f-8476-a19c1ddcf155"
-version = "0.1.0"
 
 [[deps.Calculus]]
 deps = ["LinearAlgebra"]
