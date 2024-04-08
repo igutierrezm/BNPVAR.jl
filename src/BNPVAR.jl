@@ -6,7 +6,6 @@ using LinearAlgebra: logdet, lowrankupdate!, norm, svd
 using DataFrames: DataFrames
 using Distributions: Distributions, Gamma, InverseWishart, Uniform, rand!
 using AbstractGSBPs: AbstractGSBPs
-using BayesVAR: BayesVAR
 using OffsetArrays: OffsetArray
 # using
 

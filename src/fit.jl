@@ -1,6 +1,10 @@
 function fit(
     Y::Matrix{Float64};
     p::Int = 1,
+    a0p::Float64 = 1.0,
+    b0p::Float64 = 1.0,
+    a0s::Float64 = 8.0,
+    b0s::Float64 = 4.0,
     z0::Float64 = 1.0,
     q0::Float64 = 1.0,
     v0::Int = size(Y, 2) + 1,
@@ -24,7 +28,7 @@ function fit(
     chain_gamma = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     chain_ncomp = zeros(Int, neff)
     # Run the MCMC
-    model = Model(; p, N, T, Z, q0, v0, S0, ζ0 = z0)
+    model = Model(; p, N, T, Z, q0, v0, S0, ζ0 = z0, a0p, b0p, a0s, b0s)
     for t in 1:iter
         AbstractGSBPs.step!(model)
         teff = (t - warmup) ÷ thin
@@ -44,30 +48,36 @@ function fit(
         end
     end
 
-    # # Get a DataFrame with the meaning of each gamma
-    # df_gamma_dict = DF.DataFrame(cause = Int[], effect = Int[], idx = Int[])
-    # for idx in 1:6
-    #     cause, effect = get_ij_pair(idx, N)
-    #     push!(df_gamma_dict, (cause, effect, idx))
-    # end
+    # Get a DataFrame with the meaning of each gamma
+    df_gamma_dict = DF.DataFrame(
+        gamma_id = Int[],
+        cause_id = Int[],
+        effect_id = Int[]
+    )
+    for gamma_id in 1:6
+        cause_id, effect_id = get_ij_pair(gamma_id, N)
+        push!(df_gamma_dict, (gamma_id, cause_id, effect_id))
+    end
 
     # Convert chain_gamma into a DataFrame
-    begin
-        df_chain_gamma = DF.DataFrame(hcat(chain_gamma...)' |> collect, :auto)
-        # df_chain_gamma[!, :iter] = collect(1:size(df_chain_gamma, 1))
-        # df_chain_gamma = DF.stack(df_chain_gamma, DF.Not(:iter))
-        # df_chain_gamma[!, :var_id] =
-        #     df_chain_gamma[!, :variable] .|>
-        #     (x) -> strip(x, 'x') .|>
-        #     Int
-    end
+    df_chain_gamma = DF.DataFrame(hcat(chain_gamma...)' |> collect, :auto)
+    df_chain_gamma[!, :iter] = collect(1:size(df_chain_gamma, 1))
+    df_chain_gamma = DF.stack(df_chain_gamma, DF.Not(:iter))
+    df_chain_gamma[!, :gamma_id] =
+        df_chain_gamma[!, :variable] .|>
+        (x) -> strip(x, 'x') .|>
+        (x) -> parse(Int, x)
+    df_chain_gamma =
+        df_chain_gamma |>
+        (x) -> DF.innerjoin(x, df_gamma_dict, on = :gamma_id) |>
+        (x) -> DF.select!(x, :iter, :gamma_id, :cause_id, :effect_id, :value)
 
     # Convert chain_irf into a DataFrame
     df_chain_irf =
         map(1:length(chain_irf)) do iter
             vec_irf = vcat(vec.(chain_irf[iter])...)
             ncells = length(vec_irf)
-            df = DF.DataFrame(irf = vec_irf)
+            df = DF.DataFrame(value = vec_irf)
             df[!, :horizon] = 1 .+ (0:ncells - 1) .÷ N^2
             df[!, :effect_id] = 1 .+ (0:ncells - 1) .% N
             df[!, :cause_id] = 1 .+ ((0:ncells - 1) .÷ N) .% N
@@ -75,7 +85,7 @@ function fit(
             df
         end |>
         (x) -> reduce(vcat, x) |>
-        (x) -> DF.select!(x, :iter, :horizon, :cause_id, :effect_id, :irf)
+        (x) -> DF.select!(x, :iter, :horizon, :cause_id, :effect_id, :value)
 
     # Convert chain_pdf into a DataFrame
     begin
@@ -84,7 +94,7 @@ function fit(
             horizon = Int[],
             var_id = Int[],
             y = Float64[],
-            fy = Float64[]
+            value = Float64[]
         )
         for iter in 1:neff, var_id in 1:N
             for horizon in 1:hmax, igrid in 1:grid_npoints

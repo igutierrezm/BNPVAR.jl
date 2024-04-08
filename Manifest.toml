@@ -34,14 +34,6 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
-[[deps.BayesVAR]]
-deps = ["Distributions", "LinearAlgebra", "Random"]
-git-tree-sha1 = "4f19e7ef48c2b0a172fae40bee88c09c09b95cff"
-repo-rev = "main"
-repo-url = "git@github.com:igutierrezm/BayesVAR.jl.git"
-uuid = "1b8a9075-9d38-459f-8476-a19c1ddcf155"
-version = "0.1.0"
-
 [[deps.Calculus]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "f641eb0a4f00c343bbc32346e1217b86f3ce9dad"

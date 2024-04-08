@@ -25,6 +25,10 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         v0::Int = N + 1,
         q0::Float64 = 1.0,
         ζ0::Float64 = 1.0,
+        a0p::Float64 = 1.0,
+        b0p::Float64 = 1.0,
+        a0s::Float64 = 8.0,
+        b0s::Float64 = 4.0,
         g::Vector{Bool} = ones(Bool, N * (N - 1)),
         gdict::Dict{Int, Vector{Int}} = init_gdict(N, p)
     )
@@ -43,7 +47,7 @@ struct Model <: AbstractGSBPs.AbstractGSBP
         for (key, value) in gdict
             gaugmented[value] .= g[key]
         end
-        skl = AbstractGSBPs.GSBPSkeleton(; y = yvec, x = Xvec)
+        skl = AbstractGSBPs.GSBPSkeleton(; y = yvec, x = Xvec, a0p, b0p, a0s, b0s)
         new(p, N, T - p, y, X, yvec, Xvec, S0, v0, q0, ζ0, β, Σ, g, gdict, gaugmented, skl)
     end
 end
