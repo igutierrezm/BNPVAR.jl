@@ -2,7 +2,7 @@
 
 julia_version = "1.9.1"
 manifest_format = "2.0"
-project_hash = "28a4f3c8abc7f00a8b8da7ff312fb0254ad13ef1"
+project_hash = "29d8a00650c02c7a44c69f1c3e82c4f811adb9ac"
 
 [[deps.AbstractGSBPs]]
 deps = ["Distributions", "HypergeometricFunctions", "SpecialFunctions"]
@@ -48,24 +48,6 @@ git-tree-sha1 = "f641eb0a4f00c343bbc32346e1217b86f3ce9dad"
 uuid = "49dc2e85-a5d0-5ad3-a950-438e2897f1b9"
 version = "0.5.1"
 
-[[deps.CategoricalArrays]]
-deps = ["DataAPI", "Future", "Missings", "Printf", "Requires", "Statistics", "Unicode"]
-git-tree-sha1 = "1568b28f91293458345dabba6a5ea3f183250a61"
-uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
-version = "0.10.8"
-
-    [deps.CategoricalArrays.extensions]
-    CategoricalArraysJSONExt = "JSON"
-    CategoricalArraysRecipesBaseExt = "RecipesBase"
-    CategoricalArraysSentinelArraysExt = "SentinelArrays"
-    CategoricalArraysStructTypesExt = "StructTypes"
-
-    [deps.CategoricalArrays.weakdeps]
-    JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-    SentinelArrays = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
-    StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
-
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
 git-tree-sha1 = "c6d890a52d2c4d55d326439580c3b8d0875a77d9"
@@ -82,12 +64,6 @@ version = "4.6.0"
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.0.2+0"
-
-[[deps.Conda]]
-deps = ["Downloads", "JSON", "VersionParsing"]
-git-tree-sha1 = "8c86e48c0db1564a1d49548d3515ced5d604c408"
-uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-version = "1.9.1"
 
 [[deps.Crayons]]
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
@@ -211,12 +187,6 @@ git-tree-sha1 = "abc9885a7ca2052a736a600f7fa66209f96506e1"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
 version = "1.4.1"
 
-[[deps.JSON]]
-deps = ["Dates", "Mmap", "Parsers", "Unicode"]
-git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
-uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "0.21.4"
-
 [[deps.LaTeXStrings]]
 git-tree-sha1 = "f2355693d6778a178ade15952b7ac47a4ff97996"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
@@ -281,9 +251,6 @@ deps = ["DataAPI"]
 git-tree-sha1 = "f66bdc5de519e8f8ae43bdc598782d35a25b1272"
 uuid = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
 version = "1.1.0"
-
-[[deps.Mmap]]
-uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
@@ -371,12 +338,6 @@ git-tree-sha1 = "786efa36b7eff813723c4849c90456609cf06661"
 uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 version = "2.8.1"
 
-[[deps.RCall]]
-deps = ["CategoricalArrays", "Conda", "DataFrames", "DataStructures", "Dates", "Libdl", "Missings", "REPL", "Random", "Requires", "StatsModels", "WinReg"]
-git-tree-sha1 = "d9310ed05c2ff94c4e3a545a0e4c58ed36496179"
-uuid = "6f49c342-dc21-5d91-9882-a32aef131414"
-version = "0.13.16"
-
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
@@ -420,11 +381,6 @@ version = "1.3.18"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
-
-[[deps.ShiftedArrays]]
-git-tree-sha1 = "503688b59397b3307443af35cd953a13e8005c16"
-uuid = "1277b4bf-5013-50f5-be3d-901d8477a67a"
-version = "2.0.0"
 
 [[deps.SnoopPrecompile]]
 deps = ["Preferences"]
@@ -474,12 +430,6 @@ git-tree-sha1 = "ab6083f09b3e617e34a956b43e9d51b824206932"
 uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 version = "1.1.1"
 
-[[deps.StatsModels]]
-deps = ["DataAPI", "DataStructures", "LinearAlgebra", "Printf", "REPL", "ShiftedArrays", "SparseArrays", "StatsBase", "StatsFuns", "Tables"]
-git-tree-sha1 = "8cc7a5385ecaa420f0b3426f9b0135d0df0638ed"
-uuid = "3eaba693-59b7-5ba5-a881-562e759f1c8d"
-version = "0.7.2"
-
 [[deps.StringManipulation]]
 git-tree-sha1 = "46da2434b41f41ac3594ee9816ce5541c6096123"
 uuid = "892a3eda-7b42-436c-8928-eab12a02cf0e"
@@ -526,16 +476,6 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
-
-[[deps.VersionParsing]]
-git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
-uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
-version = "1.3.0"
-
-[[deps.WinReg]]
-git-tree-sha1 = "cd910906b099402bcc50b3eafa9634244e5ec83b"
-uuid = "1b915085-20d7-51cf-bf83-8f477d6f5128"
-version = "1.0.0"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]

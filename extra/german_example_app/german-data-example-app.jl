@@ -16,7 +16,7 @@ library(bruceR)
 
 R"""
 cleaned_data <-
-    'extra/german_example/data/data.xlsx' |>
+    'extra/german_example_app/data/data.xlsx' |>
     readxl::read_xlsx() |>
     dplyr::as_tibble() |>
     janitor::clean_names() |>
@@ -40,7 +40,7 @@ cleaned_data <-
         )
     )
 cleaned_data |>
-    readr::write_csv(file = "extra/german_example/data/cleaned_data.xlsx")
+    readr::write_csv(file = "extra/german_example_app/data/cleaned_data.xlsx")
 """
 
 begin
@@ -58,21 +58,25 @@ begin
     thin = 5
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
-    for p in [2, 4]
+    chain_ncomp = zeros(Int, neff)
+    for p in [1, 3]
         model = BNPVAR.Model(; p, N, T, Z)
         for t in 1:iter
             AbstractGSBPs.step!(model)
             if (t > warmup) && ((t - warmup) % thin == 0)
-                chain_g[(t - warmup) ÷ thin] .= model.g
+                teff = (t - warmup) ÷ thin
+                chain_g[teff] .= model.g
+                chain_ncomp[teff] =
+                    get_cluster_labels(model) |> unique |> length
             end
         end
-        df = DataFrame(hcat(chain_g...)' |> collect, :auto)
-        filename = "extra/german_example/gamma/gamma_var_$p.csv"
-        R"""
-        $df |>
-            dplyr::mutate(nlags = $p) |>
-            readr::write_csv($filename)
-        """
+        # df = DataFrame(hcat(chain_g...)' |> collect, :auto)
+        # filename = "extra/german_example_app/gamma/gamma_var_$p.csv"
+        # R"""
+        # $df |>
+        #     dplyr::mutate(nlags = $p) |>
+        #     readr::write_csv($filename)
+        # """
     end
 end
 
@@ -112,7 +116,7 @@ end
 # Reload the results
 R"""
 df <-
-    "extra/german_example/gamma/" |>
+    "extra/german_example_app/gamma/" |>
     list.files("gamma_var*", full.names = TRUE) |>
     purrr::map_df(readr::read_csv)
 """
@@ -134,15 +138,12 @@ fig <-
         )
     ) +
     ggplot2::geom_tile() +
-    ggplot2::geom_text(
-        ggplot2::aes(color = ifelse(prob > 0.8, "1", "2"))
-    ) +
+    ggplot2::geom_text() +
     ggplot2::facet_wrap(
         ggplot2::vars(`# lags`),
         labeller = "label_both",
         ncol = 2
     ) +
-    ggplot2::scale_colour_manual(values = c("white", "black")) +
     ggplot2::scale_fill_distiller(
         type = "seq",
         direction = 1,
@@ -151,7 +152,6 @@ fig <-
         breaks = c(0, 1)
     ) +
     ggplot2::theme_classic() +
-    ggplot2::guides(color = "none") +
     ggplot2::theme(
         legend.position = 'top',
         legend.justification = 'left',
@@ -165,7 +165,7 @@ fig <-
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/german_example/fig/fig-prob-1vs1.png",
+        filename = "extra/german_example_app/fig/fig-prob-1vs1.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,
@@ -227,7 +227,7 @@ fig <-
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/german_example/fig/fig-prob-2vs1-investment.png",
+        filename = "extra/german_example_app/fig/fig-prob-2vs1-investment.png",
         height = 3.5,
         width = 5.5,
         dpi = 1200,
@@ -236,7 +236,7 @@ fig |>
 
 # Run a competitor test
 R"""
-    for (p in c(2, 4)) {
+    for (p in c(1, 3)) {
         fit <-
         cleaned_data |>
         vars::VAR(p = p, type = "const")
@@ -270,7 +270,7 @@ R"""
 
     readr::write_csv(
         x = pvals,
-        file = paste0("extra/german_example/pvals/pvals-1vs1-", p, ".csv")
+        file = paste0("extra/german_example_app/pvals/pvals-1vs1-", p, ".csv")
     )
 }
 """
@@ -278,7 +278,7 @@ R"""
 # Plot the results
 R"""
 fig <-
-    "extra/german_example/pvals" |>
+    "extra/german_example_app/pvals" |>
     list.files("pvals-1vs1-*", full.names = TRUE) |>
     purrr::map_df(readr::read_csv) |>
     dplyr::rename(`# lags` = nlags) |>
@@ -323,7 +323,7 @@ fig <-
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/german_example/fig/fig-pval-1vs1.png",
+        filename = "extra/german_example_app/fig/fig-pval-1vs1.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,
@@ -340,7 +340,7 @@ begin
     iter = warmup + neff * thin
     chain_g = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
     chain_irf = [[zeros(N, N) for _ in 1:hmax] for _ in 1:neff]
-    for p in [2, 4]
+    for p in [1, 3]
         model = BNPVAR.Model(; p, N, T, Z)
         for t in 1:iter
             AbstractGSBPs.step!(model)
@@ -391,13 +391,13 @@ fig <-
                 effect_var,
                 levels = effect_var |> levels() |> rev()
             )
-    ) #|>
+    ) |>
     dplyr::group_by(cause_var, effect_var, horizon) |>
     dplyr::summarize(
         irf_mean = mean(irf),
         irf_lb = quantile(irf, 0.05),
         irf_ub = quantile(irf, 0.95)
-    ) #|>
+    ) |>
     ggplot2::ggplot(
         ggplot2::aes(
             x = horizon,
@@ -425,7 +425,7 @@ fig <-
     )
 fig |>
     ggplot2::ggsave(
-        filename = "extra/german_example/fig/fig-irf.png",
+        filename = "extra/german_example_app/fig/fig-irf.png",
         dpi = 1200,
         height = 3.5,
         width = 5.5,

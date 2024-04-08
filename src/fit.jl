@@ -22,13 +22,14 @@ function fit(
     chain_pdf = [[zeros(N, grid_npoints) for _ in 1:hmax] for _ in 1:neff]
     chain_irf = [[zeros(N, N) for _ in 1:hmax] for _ in 1:neff]
     chain_gamma = [-ones(Bool, N * (N - 1)) for _ in 1:neff]
-
+    chain_ncomp = zeros(Int, neff)
     # Run the MCMC
     model = Model(; p, N, T, Z, q0, v0, S0, ζ0 = z0)
     for t in 1:iter
         AbstractGSBPs.step!(model)
         teff = (t - warmup) ÷ thin
         if (t > warmup) && ((t - warmup) % thin == 0)
+            chain_ncomp[teff] = get_cluster_labels(model) |> unique |> length
             chain_gamma[teff] .= model.g
             irf = get_irf(model, hmax)
             for h in 1:hmax
@@ -94,12 +95,16 @@ function fit(
         end
     end
 
+    # Convert chain_ncomp into a DataFrame
+    df_chain_ncomp = DF.DataFrame(ncomp = chain_ncomp)
+
     # Return the chains as DataFrames
     out =
         Dict(
             "gamma" => df_chain_gamma,
             "irf" => df_chain_irf,
             "pdf" => df_chain_pdf,
+            "ncomp" => df_chain_ncomp
         )
     return out
 end

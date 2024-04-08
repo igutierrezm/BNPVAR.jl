@@ -339,10 +339,17 @@ function get_posterior_predictive_pdf_1d(
     (; β) = m
     dpath = zeros(Int, hmax)
     nclus = length(β)
-    for h in 1:hmax
-        rnew = AG.rand_rnew(m)
-        dnew = AG.rand_dnew(m, rnew)
-        dpath[h] = min(dnew, nclus)
+    tmp  = zeros(10)
+    for idx in 1:10
+        for h in 1:hmax
+            rnew = Inf
+            while rnew > nclus
+                rnew = AG.rand_rnew(m)
+                dnew = AG.rand_dnew(m, rnew)
+                dpath[h] = min(dnew, nclus)
+            end
+        end
+        tmp[idx] = get_posterior_predictive_pdf_1d(y, k, m, dpath)
     end
-    return get_posterior_predictive_pdf_1d(y, k, m, dpath)
+    return sum(tmp) / 10
 end
